@@ -18,7 +18,8 @@
    - 3.5 The Reverse Process $p_\theta(x_{t-1} \mid x_t)$ & Why Tractable Posterior $q(x_{t-1} \mid x_t, x_0)$ Exists
    - 3.6 Parameterizing the Noise Predictor $\epsilon_\theta(x_t, t)$ & Deriving $L_{\text{simple}}$ from the ELBO
    - 3.7 Training vs. Sampling Algorithms (DDPM Algorithms 1 & 2)
-   - 3.8 Bidirectional Diagrams of Forward Noising & Reverse Denoising
+   - 3.8 Deep Dive: Why Reverse Sampling Needs $+\sigma_t z$ (Intuitive & Mathematical Proof of Collapse to the Average Image, and What Happens When a Random Kick Points Toward the "Wrong" Mode)
+   - 3.9 Bidirectional Diagrams of Forward Noising & Reverse Denoising
 4. [Section III & Task 3: Formal Equation Specifications & Step-by-Step Worked Numerical Example](#4-section-iii--task-3-formal-equation-specifications--step-by-step-worked-numerical-example)
    - 4.1 Equation 1 Specification: $q(x_t \mid x_{t-1}) = \mathcal{N}(\sqrt{1 - \beta_t}x_{t-1}, \beta_t \mathbf{I})$
    - 4.2 Equation 2 Specification: $L_{\text{simple}} = \mathbb{E}_{t, x_0, \epsilon}\big[\|\epsilon - \epsilon_\theta(x_t, t)\|^2\big]$
@@ -130,15 +131,32 @@ A crucial question is: *Why do we attenuate the previous image $x_{t-1}$ by $\sq
 
 ---
 
-### 3.3 The $\beta_t$ Variance Schedule (Linear vs. Cosine)
-The sequence $\{\beta_t\}_{t=1}^T$ controls the rate at which signal is destroyed and noise is injected:
-1. **Why $\beta_t$ starts very small ($\beta_1 \ll \beta_T$):**
-   Near $t = 1$, $x_t$ is almost a clean image with fine, sharp high-frequency details. The reverse network $p_\theta(x_{t-1} \mid x_t)$ uses a Gaussian transition. For a Gaussian to accurately approximate the true reverse conditional $q(x_{t-1} \mid x_t)$, the step size $\beta_t$ must be very small when the distribution is sharp and complex (near $t=1$), and can be larger when the distribution is already smooth and noisy (near $t=T$).
-2. **Linear Schedule (Ho et al., 2020):**
-   Increases linearly from $\beta_1 = 10^{-4}$ ($0.0001$) to $\beta_T = 0.02$ over $T = 1000$ steps:
-   $$\beta_t = \beta_1 + \frac{t - 1}{T - 1}(\beta_T - \beta_1)$$
-3. **Cosine Schedule (Nichol & Dhariwal, 2021 — Improved DDPM):**
-   For small images (like $32 \times 32$ or $28 \times 28$), a linear schedule destroys the image too quickly in the middle steps, leaving the final 20% of steps ($t \in [800, 1000]$) as redundant pure noise. A cosine schedule shapes $\bar{\alpha}_t = \cos^2\left(\frac{t/T + s}{1 + s}\cdot \frac{\pi}{2}\right)$ so that the signal-to-noise ratio decays smoothly across the entire $[0, T]$ range.
+### 3.3 The $\beta_t$ Variance Schedule: Purpose & Which Schedule to Choose for Which Data
+
+#### 1. The Three Core Purposes of $\beta_t$ Scheduling
+The variance schedule $\{\beta_t\}_{t=1}^T$ is not just an arbitrary list of numbers—it performs three mathematical jobs:
+1. **Job 1 — Keeping the Reverse Step $q(x_{t-1} \mid x_t)$ Gaussian (Feller's Theorem, 1949):**
+   * Our reverse model $p_\theta(x_{t-1} \mid x_t) = \mathcal{N}(\mu_\theta, \sigma_t^2\mathbf{I})$ assumes each reverse step is a **single Gaussian**. By Feller's theorem, the reverse of a Gaussian forward step is only Gaussian when the step size $\beta_t \ll 1$.
+   * **Why $\beta_1$ must be tiny ($10^{-4}$) while $\beta_T$ can be $200\times$ larger ($0.02$):**
+     * **Near $t = 1$ (Sharp Data Manifold):** The clean image distribution $q(x_0)$ is razor-sharp and highly non-Gaussian. Even a moderate noise step would mix multiple distinct images, making the true reverse distribution $q(x_0 \mid x_1)$ multi-modal. Thus $\beta_1$ must be tiny ($\approx 10^{-4}$) so the reverse step is purely local and Gaussian.
+     * **Near $t = T$ (Smooth Noise Manifold):** By large $t$, $q(x_t)$ has already been smoothed into a wide bell curve close to $\mathcal{N}(\mathbf{0}, \mathbf{I})$. Because the density is already smooth and Gaussian, we can take much larger steps ($\beta_T \approx 0.02$) without breaking the Gaussian approximation!
+2. **Job 2 — Guaranteeing Zero Signal Leakage at $t = T$ ($\bar{\alpha}_T \approx 0$):**
+   * At inference time, we start from pure standard normal noise $x_T \sim \mathcal{N}(\mathbf{0}, \mathbf{I})$.
+   * Therefore, the cumulative product $\bar{\alpha}_T = \prod_{t=1}^T (1 - \beta_t) \approx \exp\big(-\sum_{t=1}^T \beta_t\big)$ **must decay to $\approx 0$** by step $T$.
+   * *Rule when changing $T$:* Because $\bar{\alpha}_T \approx \exp(-\sum_{t=1}^T \beta_t)$, if you use fewer total steps (e.g., $T = 300$ instead of $T = 1000$), you **must scale $\beta_{\max}$ up** proportionally (e.g., $\beta_{300} \approx 0.03\text{–}0.05$) so the sum $\sum_{t=1}^T \beta_t$ stays around $\sim 10$ and $\bar{\alpha}_T$ still reaches $\approx 0$!
+3. **Job 3 — Pacing Frequency Destruction Across Scales (Coarse-to-Fine Hierarchy):**
+   * Natural images follow a $1/f^2$ power law: **high-frequency details** (edges, fine textures) have tiny power and are erased by tiny noise at small $t$ ($\beta_t \sim 10^{-4}$), whereas **low-frequency global structures** (overall pose, large color regions) span hundreds of correlated pixels and require huge cumulative noise ($1 - \bar{\alpha}_t \to 1$) to erase.
+   * A well-designed schedule spaces out the Signal-to-Noise Ratio $\text{SNR}(t) = \frac{\bar{\alpha}_t}{1 - \bar{\alpha}_t}$ so the U-Net spends roughly equal steps learning fine textures (small $t$), object parts (medium $t$), and global layout (large $t$).
+
+#### 2. Which $\beta_t$ Schedule Should You Choose for Which Data?
+Different data resolutions and domains have vastly different **pixel redundancy**, requiring different schedules:
+
+| Schedule Type | Mathematical Formula | Best Data / Domain to Use It On | Why It Fits This Data |
+| :--- | :--- | :--- | :--- |
+| **1. Linear Schedule**<br>*(Ho et al., 2020)* | $\beta_t = \beta_1 + \frac{t-1}{T-1}(\beta_T - \beta_1)$<br>*(for $T=1000$: $\beta_1 = 10^{-4} \to \beta_T = 0.02$)* | **Medium-Resolution Pixel Images**<br>($64 \times 64$ to $256 \times 256$ RGB images, e.g., CelebA, LSUN) | Standard baseline. However, on small images ($28^2$ or $32^2$), $\bar{\alpha}_t$ drops too fast in the middle, leaving the final 20% of steps ($t \in [800, 1000]$) as wasted pure static. |
+| **2. Cosine Schedule**<br>*(Nichol & Dhariwal, 2021)* | $\bar{\alpha}_t = \frac{f(t)}{f(0)}, \; f(t) = \cos^2\!\left(\frac{t/T + s}{1 + s}\frac{\pi}{2}\right)$<br>*(with offset $s = 0.008$, $\beta_t = 1 - \frac{\bar{\alpha}_t}{\bar{\alpha}_{t-1}} \le 0.999$)* | **Low-Resolution Images ($28 \times 28$ MNIST, $32 \times 32$ CIFAR-10)**, **2D Toy Data**, & **Tabular / 3D Point Clouds** | Low-dim / low-res data has very little spatial redundancy, so linear noise destroys the signal too early. Cosine decays $\bar{\alpha}_t$ gently in the middle, spending more steps in the critical mode-splitting zone ($\bar{\alpha}_t \in [0.2, 0.8]$). |
+| **3. Scaled-Linear (Quadratic $\beta_t$)**<br>*(Rombach et al., 2022 / Stable Diffusion)* | $\beta_t = \left(\sqrt{\beta_1} + \frac{t-1}{T-1}\big(\sqrt{\beta_T} - \sqrt{\beta_1}\big)\right)^2$<br>*(for $T=1000$: $\beta_1 = 0.00085 \to \beta_T = 0.012$)* | **Latent Diffusion Models (LDMs)**<br>(VAE Latent Tensors $z_0 \in \mathbb{R}^{64 \times 64 \times 4}$) | Because the VAE encoder $\mathcal{E}(x_0)$ has *already removed* spatial pixel redundancy, every latent entry in $z_0$ is dense with semantic information. A lower max $\beta_T = 0.012$ and linear-in-$\sqrt{\beta}$ spacing prevents abrupt semantic destruction. |
+| **4. Shifted / High-Noise Schedule**<br>*(Hoogeboom et al., 2023 / SDXL / Flux)* | Shift SNR by resolution ratio $(H/H_{\text{base}})^2$:<br>$\text{SNR}_{\text{high}}(t) = \left(\frac{H_{\text{base}}}{H_{\text{high}}}\right)^2 \text{SNR}_{\text{base}}(t)$<br>*(or Zero-Terminal-SNR where $\bar{\alpha}_T = 0$ exactly)* | **High-Resolution Images ($512 \times 512$, $1024 \times 1024+$)** & **Video Generation** | In a $1024 \times 1024$ image, a single object spans $16 \times 16 = 256\times$ more pixels than in a $64 \times 64$ image! Averaging a $16\times 16$ patch cancels out independent pixel noise by $\frac{1}{\sqrt{256}} = \frac{1}{16}$, so the global shape remains visible even at high noise. High-res images require **stronger noise (smaller $\bar{\alpha}_t$)** to erase global structure! |
 
 ---
 
@@ -214,11 +232,123 @@ Look at $L_{t-1} = D_{\text{KL}}\big(q(x_{t-1} \mid x_t, x_0) \,\|\, p_\theta(x_
 | **Repeat** until converged:<br>1. Sample clean image $x_0 \sim q(x_0)$<br>2. Sample random step $t \sim \text{Uniform}(\{1, \dots, T\})$<br>3. Sample standard noise $\epsilon \sim \mathcal{N}(\mathbf{0}, \mathbf{I})$<br>4. Create noisy image in 1 jump:<br>$\quad x_t = \sqrt{\bar{\alpha}_t}x_0 + \sqrt{1 - \bar{\alpha}_t}\epsilon$<br>5. Take gradient descent step on:<br>$\quad \nabla_\theta \big\| \epsilon - \epsilon_\theta(x_t, t) \big\|^2$ | 1. Sample pure noise $x_T \sim \mathcal{N}(\mathbf{0}, \mathbf{I})$<br>2. **For** $t = T, T-1, \dots, 1$ **do**:<br>$\quad$ Draw $z \sim \mathcal{N}(\mathbf{0}, \mathbf{I})$ if $t > 1$, else $z = \mathbf{0}$<br>$\quad$ Compute reverse step:<br>$\quad x_{t-1} = \frac{1}{\sqrt{\alpha_t}}\left(x_t - \frac{1-\alpha_t}{\sqrt{1-\bar{\alpha}_t}}\epsilon_\theta(x_t, t)\right) + \sigma_t z$<br>3. **End for**<br>4. **Return** generated clean image $x_0$ |
 
 > **Why do we add fresh noise $\sigma_t z$ during each reverse sampling step ($t > 1$)?**  
-> Because $p_\theta(x_{t-1} \mid x_t) = \mathcal{N}(\mu_\theta(x_t, t), \sigma_t^2 \mathbf{I})$ is a *stochastic probability distribution*, not a deterministic point estimate! Just like in Langevin dynamics, injecting stochastic noise $\sigma_t z$ at each intermediate step prevents the trajectory from collapsing onto a blurry average mode and allows the sampler to explore the multi-modal distribution before settling at $t=1$ (where $z = \mathbf{0}$).
+> Because $p_\theta(x_{t-1} \mid x_t) = \mathcal{N}(\mu_\theta(x_t, t), \sigma_t^2 \mathbf{I})$ is a *stochastic probability distribution*, not a deterministic point estimate! Below is the complete intuitive and mathematical proof of why omitting $+\sigma_t z$ causes the distribution to collapse to a blurry average image, and what happens when a random kick points toward a different mode.
 
 ---
 
-### 3.8 Bidirectional Diagrams of Forward Noising & Reverse Denoising
+### 3.8 Deep Dive: Why Reverse Sampling Needs $+\sigma_t z$ (Intuitive & Mathematical Proof + Mode Commitment)
+
+Look at the DDPM reverse sampling update from step $t \to t-1$:
+$$x_{t-1} = \underbrace{\frac{1}{\sqrt{\alpha_t}} \left( x_t - \frac{\beta_t}{\sqrt{1 - \bar{\alpha}_t}} \epsilon_\theta(x_t, t) \right)}_{\text{Deterministic Mean }\mu_\theta(x_t, t)} + \underbrace{\sigma_t z}_{\text{Stochastic Kick } (z \sim \mathcal{N}(0, I)\text{ for }t>1)}$$
+
+#### 1. Intuitive Explanation: "The Fork in the Road" & MSE Averaging
+Imagine a dataset containing only **two sharp images**:
+* **Image A ($x_0^{(A)}$):** A bright digit `'1'` tilted to the **left** ($\backslash$).
+* **Image B ($x_0^{(B)}$):** A bright digit `'1'` tilted to the **right** ($/$).
+
+When we add large amounts of Gaussian noise ($t \approx T$), both Image A and Image B get completely buried in static and merge into the exact same cloud $\mathcal{N}(0, \mathbf{I})$. Suppose we start at a noisy image $x_t$ near the center of that cloud:
+* **What does the U-Net $\epsilon_\theta(x_t, t)$ predict?** Because the U-Net is trained with **Mean Squared Error ($L_2$) loss** ($L_{\text{simple}} = \mathbb{E}[\|\epsilon - \epsilon_\theta(x_t, t)\|^2]$), the optimal $L_2$ prediction under uncertainty is always the **conditional expectation (arithmetic average)** of all possible outcomes (just as proved for VAE Posterior Collapse in [CS 182 Lecture 18, Section 2.11](file:///D:/AI/Diffusion/cs_182_generative_models_study_guide_lectures_17_19.md#L389-L396)).
+* Since $x_t$ is equally likely ($50\% / 50\%$) to have come from Image A or Image B, predicting $100\%$ Image A would incur a huge MSE penalty whenever the true image was B. Thus, the deterministic mean $\mu_\theta(x_t, t)$ points straight toward the **$50/50$ superimposed average** of A and B ($\frac{1}{2}x_0^{(A)} + \frac{1}{2}x_0^{(B)}$, a blurry `'X'` blob)!
+
+```text
+                    ┌──► Image A (\)   <-- With +σ_t·z: Random kick pushes x_{t-1} into A's basin!
+                    │
+Noisy x_T ──────────┼──► Blurry Average (X) <-- Without +σ_t·z: μ_θ pulls straight down the middle ridge!
+                    │
+                    └──► Image B (/)   <-- With +σ_t·z: Or random kick pushes x_{t-1} into B's basin!
+```
+
+* **Without $+\sigma_t z$:** The trajectory rides straight down the central symmetry ridge and lands on a washed-out, blurry average image. Furthermore, because averaging smooths out noise, $\mu_\theta(x_t, t)$ has *less variance* than $1 - \bar{\alpha}_{t-1}$, meaning the input to the U-Net at step $t-1$ falls out-of-distribution!
+* **With $+\sigma_t z$:** The random kick breaks the symmetry off the central ridge and restores the exact variance $1 - \bar{\alpha}_{t-1}$ that the U-Net at step $t-1$ was trained to expect.
+
+---
+
+#### 2. Three-Step Mathematical Proof of Collapse to the Average Image
+
+##### Proof Step 1: The Optimal $\mu_\theta^*(x_t, t)$ Explicitly Contains the Blurry Average $\mathbb{E}[x_0 \mid x_t]$
+Because $L_{\text{simple}}(\theta) = \mathbb{E}_{x_0, \epsilon}\big[\|\epsilon - \epsilon_\theta(x_t, t)\|^2\big]$ is an $L_2$ regression objective, the exact minimum-MSE solution is the conditional expectation:
+$$\epsilon_\theta^*(x_t, t) = \mathbb{E}[\epsilon \mid x_t] = \frac{x_t - \sqrt{\bar{\alpha}_t}\, \mathbb{E}[x_0 \mid x_t]}{\sqrt{1 - \bar{\alpha}_t}}$$
+where $\mathbb{E}[x_0 \mid x_t] = \int x_0 \, p(x_0 \mid x_t) \, dx_0$ is the **posterior average of all clean images $x_0$ that could have generated $x_t$**.
+Substituting $\epsilon_\theta^*(x_t, t)$ into the DDPM reverse mean formula $\mu_\theta(x_t, t) = \frac{1}{\sqrt{\alpha_t}}\big(x_t - \frac{\beta_t}{\sqrt{1-\bar{\alpha}_t}}\epsilon_\theta(x_t, t)\big)$ gives:
+$$\boxed{\mu_\theta^*(x_t, t) = \mathbb{E}[x_{t-1} \mid x_t] = \frac{\sqrt{\bar{\alpha}_{t-1}}\beta_t}{1 - \bar{\alpha}_t} \underbrace{\mathbb{E}[x_0 \mid x_t]}_{\text{Blurry Average Image}} + \frac{\sqrt{\alpha_t}(1 - \bar{\alpha}_{t-1})}{1 - \bar{\alpha}_t} x_t}$$
+Thus, $\mu_\theta^*(x_t, t)$ literally pulls $x_t$ toward the blurry posterior average $\mathbb{E}[x_0 \mid x_t]$ at every step!
+
+##### Proof Step 2: The Law of Total Variance (Strict Variance Loss at Every Step)
+By the **Law of Total Variance**, the true marginal variance of $x_{t-1}$ decomposes into two strictly positive parts:
+$$\underbrace{\text{Var}(x_{t-1})}_{\text{True Variance at }t-1} = \underbrace{\text{Var}\big(\mathbb{E}[x_{t-1} \mid x_t]\big)}_{\text{Variance of }\mu_\theta^*(x_t, t)\text{ alone}} + \underbrace{\mathbb{E}\big[\text{Var}(x_{t-1} \mid x_t)\big]}_{\text{Variance supplied by }+\sigma_t z \; (= \sigma_t^2)}$$
+If you drop $+\sigma_t z$ and set $x_{t-1}^{\text{no-noise}} = \mu_\theta^*(x_t, t)$, the variance shrinks by $\sigma_t^2$ at **every single step**:
+$$\text{Var}\big(x_{t-1}^{\text{no-noise}}\big) = \text{Var}(x_{t-1}) - \sigma_t^2 < \text{Var}(x_{t-1})$$
+
+##### Proof Step 3: Exact Analytical Proof on a Non-Gaussian Bimodal Dataset $x_0 \in \{-1, +1\}$ (How $+\sigma_t z$ Moves Us Away from the Mean $0$!)
+Of course, real data $x_0$ does **not** follow $\mathcal{N}(0, 1)$! Suppose our true data distribution $p_{\text{data}}(x_0)$ consists of **two sharp modes** at $x_0 = -1$ (Mode A) and $x_0 = +1$ (Mode B), with **zero real data at the mean $0$**:
+$$p_{\text{data}}(x_0) = \frac{1}{2}\delta(x_0 + 1) + \frac{1}{2}\delta(x_0 - 1), \qquad \text{Mean } \mathbb{E}[x_0] = 0$$
+
+1. **Exact Formula for the Posterior Average $\mathbb{E}[x_0 \mid x_t]$:**
+   Given a noisy point $x_t$, the forward likelihood of coming from $+1$ vs. $-1$ is $q(x_t \mid x_0 = \pm 1) = \mathcal{N}(x_t; \, \pm\sqrt{\bar{\alpha}_t}, \, 1 - \bar{\alpha}_t)$. By Bayes' rule:
+   $$\begin{aligned}
+   \mathbb{E}[x_0 \mid x_t] &= (+1)\, p(x_0 = +1 \mid x_t) + (-1)\, p(x_0 = -1 \mid x_t) \\
+   &= \frac{\exp\left(-\frac{(x_t - \sqrt{\bar{\alpha}_t})^2}{2(1-\bar{\alpha}_t)}\right) - \exp\left(-\frac{(x_t + \sqrt{\bar{\alpha}_t})^2}{2(1-\bar{\alpha}_t)}\right)}{\exp\left(-\frac{(x_t - \sqrt{\bar{\alpha}_t})^2}{2(1-\bar{\alpha}_t)}\right) + \exp\left(-\frac{(x_t + \sqrt{\bar{\alpha}_t})^2}{2(1-\bar{\alpha}_t)}\right)} = \boxed{\tanh\left(\frac{\sqrt{\bar{\alpha}_t}}{1 - \bar{\alpha}_t}\, x_t\right)}
+   \end{aligned}$$
+   Substituting $\mathbb{E}[x_0 \mid x_t] = \tanh\left(\frac{\sqrt{\bar{\alpha}_t}}{1 - \bar{\alpha}_t} x_t\right)$ into our Proof Step 1 formula for $\mu_\theta^*(x_t, t)$ gives the **exact deterministic drift** of the diffusion model:
+   $$\boxed{\mu_\theta^*(x_t, t) = \underbrace{\frac{\sqrt{\bar{\alpha}_{t-1}}\beta_t}{1 - \bar{\alpha}_t}\, \tanh\left(\frac{\sqrt{\bar{\alpha}_t}}{1 - \bar{\alpha}_t}\, x_t\right)}_{\text{Mode-Splitting Push toward }\pm 1} + \underbrace{\frac{\sqrt{\alpha_t}(1 - \bar{\alpha}_{t-1})}{1 - \bar{\alpha}_t}\, x_t}_{\text{Contraction Pull toward }0}}$$
+
+2. **Why Omitting $+\sigma_t z$ Traps or Pulls $x_t$ Into the Mean $0$:**
+   * **At the mean $x_t = 0$:** $\tanh(0) = 0 \implies \mu_\theta^*(0, t) = 0$. Without $+\sigma_t z$, $x_t = 0$ is a **fixed point**—it stays stuck at the nonexistent average image $x_0 = 0$ forever!
+   * **During all early high-noise steps ($t \approx T \to T/2$, where $\bar{\alpha}_t \approx 0$):** Because $\bar{\alpha}_t \ll 1$, the mode-splitting $\tanh$ term is nearly zero ($\frac{\sqrt{\bar{\alpha}_t}\beta_t}{1-\bar{\alpha}_t} \approx 0$), while the second term equals $\approx \sqrt{\alpha_t}\, x_t$ (with $\sqrt{\alpha_t} < 1$).
+   * That means **during the first half of reverse sampling, the deterministic mean $\mu_\theta^*(x_t, t) \approx \sqrt{\alpha_t}\, x_t$ actively contracts every point INWARD toward the mean $0$!** If you do not add $+\sigma_t z$, every sample gets shrunk by $\prod \sqrt{\alpha_t}$ right toward $x_t \approx 0$ *before* $\bar{\alpha}_t$ ever becomes large enough for the $\tanh$ term to turn on!
+
+3. **Step-by-Step: How $+\sigma_t z$ Moves Us AWAY from the Mean $0$ and Triggers the Split to $-1$ or $+1$:**
+   * **Role 1 — Breaking the $x_t = 0$ Deadlock:** Suppose $x_t = 0$ (dead center on the blurry average, where $\mu_\theta^*(0, t) = 0$). Adding $+\sigma_t z$ (say, $+0.25$) physically moves $x_{t-1}$ **away from the mean $0$** to $x_{t-1} = +0.25$.
+   * **Role 2 — Amplifying via Positive Feedback on the Next Step:** Now that $x_{t-1} = +0.25 > 0$, on step $t-1$ the $\tanh$ term wakes up:
+     $$\mathbb{E}[x_0 \mid x_{t-1} = +0.25] = \tanh\left(\frac{\sqrt{\bar{\alpha}_{t-1}}}{1 - \bar{\alpha}_{t-1}} \times 0.25\right) > 0$$
+     Because $x_{t-1} > 0$, the posterior average $\mathbb{E}[x_0 \mid x_{t-1}]$ is now biased toward Mode B ($+1$). This causes $\mu_\theta^*(x_{t-1}, t-1)$ to push $x_{t-2}$ even *further* toward $+1$ (say $+0.55$), which makes $\tanh(\cdot)$ even closer to $+1.0$ on the step after that, rapidly locking into the sharp mode $x_0 = +1$!
+   * **Role 3 — Keeping $x_t$ Away from $0$ Until the Vector Field Itself Flips Direction:** In the early steps ($t \approx T$) when $\mu_\theta^*(x_t, t) \approx \sqrt{\alpha_t}\,x_t$ is trying to shrink $x_t \to 0$, the random kicks $+\sigma_t z$ replenish the variance $(\sqrt{\alpha_t})^2(1) + \beta_t = 1$ so that $x_t$ stays at distance $\sim \mathcal{O}(1)$ away from $0$ until $\bar{\alpha}_t$ grows large enough for $\tanh\left(\frac{\sqrt{\bar{\alpha}_t}}{1-\bar{\alpha}_t}x_t\right) \to \pm 1$ to snap the trajectory into one of the true modes!
+
+#### 4. Why Doesn't the $L_2$-Trained Vector Field at $x_{t-1}$ Always Point Toward the Global Mean Image?
+A very subtle question is: *"Since we train with $L_2$ loss across the entire dataset, shouldn't the learned vector field at ANY position $x_{t-1}$ always point toward the global mean image $\mathbb{E}[x_0] = 0$?"*
+
+**No!** Because the U-Net takes $(x_t, t)$ as input, $L_2$ loss does **not** average over all training images equally—it only averages over the training images whose forward noise cloud $q(x_t \mid x_0^{(i)}) = \mathcal{N}(\sqrt{\bar{\alpha}_t}x_0^{(i)}, (1 - \bar{\alpha}_t)\mathbf{I})$ **actually reaches the coordinate $x_t$ at timestep $t$**:
+$$\mathbb{E}[x_0 \mid x_t] = \sum_{i=1}^N w_i(x_t, t)\, x_0^{(i)}, \qquad \text{where } w_i(x_t, t) = \frac{\exp\left(-\frac{\|x_t - \sqrt{\bar{\alpha}_t}x_0^{(i)}\|^2}{2(1 - \bar{\alpha}_t)}\right)}{\sum_{j=1}^N \exp\left(-\frac{\|x_t - \sqrt{\bar{\alpha}_t}x_0^{(j)}\|^2}{2(1 - \bar{\alpha}_t)}\right)}$$
+
+Look at how the vector field $\mu_\theta^*(x_t, t) - x_t$ changes completely across $t$:
+```text
+1. At Large t (t = 1000, Huge Noise: 1 - ᾱ_t ≈ 1):
+   The Gaussian clouds of Mode A (-1) and Mode B (+1) completely overlap!
+   Every coordinate x_t is hit 50% by A and 50% by B during training (w_A ≈ 0.5, w_B ≈ 0.5).
+   Therefore, at t = 1000, the vector field everywhere DOES point INWARD toward the Global Mean 0:
+   ────► ────► ────► [ 0 (Global Mean) ] ◄──── ◄──── ◄────
+        (-1)                                  (+1)
+
+2. At Medium t (t = 300, Moderate Noise: Clouds Around A=-1 and B=+1 Separate!):
+   During training at t = 300, points at x_t = +0.5 are hit ~85% by B (+1) and only ~15% by A (-1)!
+   ONLY the dead-center point x_t = 0 still sees 50% A and 50% B!
+   Now the vector field at x_t > 0 points OUTWARD (away from 0 and toward +1):
+   ────► [ -1 (Mode A) ] ◄──── ◄── [ 0 ] ──► ────► [ +1 (Mode B) ] ◄────
+
+3. At Small t (t = 50, Small Noise: 1 - ᾱ_t ≈ 0.01, Zero Overlap!):
+   During training at t = 50, Mode A (-1) NEVER reaches x_t = +0.5 (it is 15 standard deviations away: w_A ≈ 10⁻⁵⁰ ≈ 0, w_B ≈ 1.0)!
+   The U-Net at (x_t = +0.5, t = 50) ONLY ever saw training samples from Mode B (+1)!
+   So the L2 vector field at x_t > 0 points 100% toward Mode B (+1), with ZERO pull toward 0:
+   ════► [ -1 (Mode A) ] ◄═══════  [ 0 ]  ═══════► [ +1 (Mode B) ] ◄════
+```
+**Summary of the Synergy:**
+* At **large $t$**, the vector field *does* pull toward the global mean $0$. The noise $+\sigma_t z$ fights this inward pull and keeps scattering $x_t$ away from $0$.
+* Then, as **$t$ decreases**, the training clouds around Mode A and Mode B shrink and separate. Because $+\sigma_t z$ kept our sample away from $0$ (say at $x_t = +0.5$), our sample now sits in a region where Mode A never visits during training—so the $L_2$ vector field at $x_t = +0.5$ **flips direction** and pulls **away from $0$ and straight into Mode B ($+1$)**!
+
+---
+
+#### 3. What If We Want to Sample Mode A, But the Random Kick $+\sigma_t z$ Pushes Toward Mode B?
+This question has **two distinct answers** depending on whether we are doing **Unconditional Generation** ($p_\theta(x_0)$) or **Conditional Generation** ($p_\theta(x_0 \mid y = A)$), and **which timestep $t$** we are at:
+
+| Scenario | What Happens When $z$ Points Toward B? | Why It Works Mathematically |
+| :--- | :--- | :--- |
+| **1. Unconditional Sampling at Early Steps ($t \approx T \to 600$)**<br>*(No prompt given; $x_t$ is still pure ambiguous static)* | **The sample simply becomes Image B!** | In *unconditional* generation, you haven't asked the model for A or B—you only asked for a valid random sample from $p_{\text{data}}(x)$. On 50% of runs, early $z$ kicks push into A's basin (generating a sharp A); on the other 50% of runs, early $z$ kicks push into B's basin (generating a sharp B). That is *how* unconditional diffusion achieves full mode diversity! |
+| **2. Unconditional Sampling at Middle/Late Steps ($t \approx 400 \to 1$)**<br>*(Sample has already entered A's basin, e.g., a half-formed dog, and a random kick $z$ points toward B)* | **It stays Mode A! The deterministic drift $\mu_\theta$ immediately pulls it back to A.** | **Two reasons a late kick cannot flip A into B:**<br>1. **Exponential Bayesian Lock-In:** Once $x_t$ is slightly closer to A than B, the posterior probability $p(x_0 = A \mid x_t)$ jumps to $\approx 99.99\%$ while $p(x_0 = B \mid x_t) \approx 0.01\%$ (because Gaussian likelihood $\exp(-\|x_t - \sqrt{\bar{\alpha}_t}x_0\|^2 / 2(1-\bar{\alpha}_t))$ decays exponentially with distance as $1-\bar{\alpha}_t \to 0$). Thus $\mathbb{E}[x_0 \mid x_t] \approx 1.0 \cdot A + 0.0 \cdot B = A$—so the deterministic vector $\mu_\theta(x_t, t)$ acts like a steep gravity well pulling straight back to A!<br>2. **Shrinking Noise Schedule ($\sigma_t \to 0$):** As $t \to 1$, $\sigma_t \approx \sqrt{\beta_t}$ shrinks from $0.141$ (at $t=1000$) down to $0.01$ (at $t=1$). Late kicks are **too tiny** to jump over the high-energy barrier between Mode A and Mode B; they only randomize **fine local textures within Mode A** (e.g., individual fur strands or stroke micro-variations). |
+| **3. Conditional Sampling ($p_\theta(x_0 \mid y = \text{"A"})$)**<br>*(You explicitly want Mode A via class label or text prompt $y = A$)* | **Mode B is completely erased from the U-Net's drift from Step $t = T$!** | When you explicitly want A, you pass $y = A$ into the conditioned U-Net $\epsilon_\theta(x_t, t, y=A)$ (and amplify it with Classifier-Free Guidance $w > 1$). Now the U-Net predicts $\mathbb{E}[x_0 \mid x_t, \, \mathbf{y = A}]$, which averages **only over images in Class A**! Even if a random kick $z$ at $t=T$ pushes toward B's coordinates, the guided drift $\mu_\theta(x_t, t, y=A)$ points strongly toward A and overpowers the kick, dragging the trajectory into A's basin. *(Inside Class A, $+\sigma_t z$ still breaks symmetry between sub-modes $A_1, A_2, \dots$ so you get a sharp specific instance of A rather than the blurry average of all A's!)* |
+
+---
+
+### 3.9 Bidirectional Diagrams of Forward Noising & Reverse Denoising
 
 #### Diagram 1: Bidirectional Markov Chain (Required for Task 2)
 ```mermaid

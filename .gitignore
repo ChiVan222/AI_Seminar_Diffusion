@@ -12,3 +12,14 @@ data/
 *.pt
 *.pth
 *.ckpt
+
+# LaTeX build artifacts
+*.aux
+*.log
+*.out
+*.toc
+*.bbl
+*.blg
+*.synctex.gz
+*.fls
+*.fdb_latexmk

@@ -297,6 +297,219 @@ print(f"Discriminative Classifier Test Accuracy: {100.0 * correct / total:.2f}% 
 """)
 
 # ==============================================================================
+# CELL 4B: EXPERIMENT 1A-3 — LATENT SPACE COMPARISON: AUTOENCODER VS VAE/DIFFUSION
+# ==============================================================================
+add_markdown(r"""
+### 1.3 Visualizing Latent Spaces: Why We Cannot Sample from a Standard Autoencoder (AE) vs. Why We CAN Sample from a VAE / Diffusion Model
+From **CS 182 Lecture 17 & 18**, what separates a deterministic representation model (**Autoencoder**) from a true probabilistic **Generative Model** (**VAE / Diffusion**)?
+
+To see the exact geometry without any dimensionality-reduction distortion (no t-SNE/PCA needed!), we train a **2D-Bottleneck Deterministic Autoencoder ($z \in \mathbb{R}^2$)** and a **2D-Bottleneck Variational Autoencoder ($z \in \mathbb{R}^2$)** on MNIST with identical encoder/decoder architectures:
+1. **Deterministic Autoencoder ($z = f_\phi(x) \in \mathbb{R}^2$):**
+   * Trained **only** with reconstruction loss $\min_{\theta,\phi} \|x - g_\theta(f_\phi(x))\|^2$ (no prior $p(z)$, no KL penalty, no noise injection).
+   * **What happens to its latent space?** To make reconstruction easy for the decoder, the encoder flings different digit classes out to **huge, arbitrary coordinates** (e.g., $[-20, +20]$) and packs them into narrow, jagged islands separated by **massive empty gaps ("holes")** where the decoder $g_\theta(z)$ was never trained!
+   * **Why sampling fails:**
+     1. We do **not know the distribution $p(z)$** of the encoded points. If you try to sample from a standard normal prior $z \sim \mathcal{N}(0, I)$, the unit circle at $(0, 0)$ either lands in an empty gap between islands or covers only a tiny corner of one class!
+     2. If you sample across the latent space or interpolate between two points $z_A \to z_B$, you cross unvisited "dead zones" that decode into fractured, meaningless garbage blobs.
+2. **Variational Autoencoder ($q_\phi(z \mid x) = \mathcal{N}(\mu_\phi(x), \sigma_\phi^2(x)) \in \mathbb{R}^2$) & Diffusion ($q(x_T \mid x_0) \approx \mathcal{N}(0, I)$):**
+   * The **KL divergence penalty** $D_{\text{KL}}(q_\phi(z\mid x) \,\|\, \mathcal{N}(0, I))$ pulls all 10 digit clusters tightly inside the $[-3, +3]$ container of $\mathcal{N}(0, I)$, while the **injected Gaussian noise** $\sigma_\phi(x) \odot \epsilon$ forces neighboring clouds to touch and overlap, **eliminating all empty holes**!
+   * Consequently, any random dart $z \sim \mathcal{N}(0, I)$ lands on a valid, trained region of the manifold and decodes into a realistic digit!
+""")
+
+add_code(r"""
+class Autoencoder2D(nn.Module):
+    '''Deterministic Autoencoder with a 2D bottleneck z in R^2 (No KL penalty, no noise).'''
+    def __init__(self):
+        super().__init__()
+        self.encoder = nn.Sequential(
+            nn.Conv2d(1, 32, 4, stride=2, padding=1), nn.ReLU(),  # 14x14
+            nn.Conv2d(32, 64, 4, stride=2, padding=1), nn.ReLU(), # 7x7
+            nn.Flatten(),
+            nn.Linear(64 * 7 * 7, 128), nn.ReLU(),
+            nn.Linear(128, 2)  # Direct 2D bottleneck z = f_phi(x)
+        )
+        self.decoder = nn.Sequential(
+            nn.Linear(2, 128), nn.ReLU(),
+            nn.Linear(128, 64 * 7 * 7), nn.ReLU(),
+            nn.Unflatten(1, (64, 7, 7)),
+            nn.ConvTranspose2d(64, 32, 4, stride=2, padding=1), nn.ReLU(),
+            nn.ConvTranspose2d(32, 1, 4, stride=2, padding=1), nn.Sigmoid()
+        )
+
+    def encode(self, x):
+        return self.encoder(x)
+
+    def decode(self, z):
+        return self.decoder(z)
+
+    def forward(self, x):
+        z = self.encode(x)
+        return self.decode(z), z
+
+class VAE2D(nn.Module):
+    '''Variational Autoencoder with the exact same architecture and a 2D latent space z in R^2.'''
+    def __init__(self):
+        super().__init__()
+        self.enc_backbone = nn.Sequential(
+            nn.Conv2d(1, 32, 4, stride=2, padding=1), nn.ReLU(),
+            nn.Conv2d(32, 64, 4, stride=2, padding=1), nn.ReLU(),
+            nn.Flatten(),
+            nn.Linear(64 * 7 * 7, 128), nn.ReLU()
+        )
+        self.fc_mu = nn.Linear(128, 2)
+        self.fc_logvar = nn.Linear(128, 2)
+
+        self.decoder = nn.Sequential(
+            nn.Linear(2, 128), nn.ReLU(),
+            nn.Linear(128, 64 * 7 * 7), nn.ReLU(),
+            nn.Unflatten(1, (64, 7, 7)),
+            nn.ConvTranspose2d(64, 32, 4, stride=2, padding=1), nn.ReLU(),
+            nn.ConvTranspose2d(32, 1, 4, stride=2, padding=1), nn.Sigmoid()
+        )
+
+    def encode(self, x):
+        h = self.enc_backbone(x)
+        return self.fc_mu(h), self.fc_logvar(h)
+
+    def reparameterize(self, mu, logvar):
+        return mu + torch.exp(0.5 * logvar) * torch.randn_like(mu)
+
+    def decode(self, z):
+        return self.decoder(z)
+
+    def forward(self, x):
+        mu, logvar = self.encode(x)
+        z = self.reparameterize(mu, logvar)
+        return self.decode(z), mu, logvar
+
+ae_2d = Autoencoder2D().to(device)
+vae_2d = VAE2D().to(device)
+opt_ae2d = torch.optim.Adam(ae_2d.parameters(), lr=1.5e-3)
+opt_vae2d = torch.optim.Adam(vae_2d.parameters(), lr=1.5e-3)
+
+t0 = time.time()
+for epoch in range(1, 7):
+    ae_2d.train()
+    vae_2d.train()
+    for x_b, _ in train_loader:
+        x_b = x_b.to(device)
+        # 1. Train Deterministic AE (Reconstruction only)
+        x_hat_ae, _ = ae_2d(x_b)
+        loss_ae = F.binary_cross_entropy(x_hat_ae, x_b, reduction="sum") / x_b.size(0)
+        opt_ae2d.zero_grad()
+        loss_ae.backward()
+        opt_ae2d.step()
+
+        # 2. Train Probabilistic VAE (Reconstruction + KL to N(0, I))
+        x_hat_vae, mu, logvar = vae_2d(x_b)
+        recon_vae = F.binary_cross_entropy(x_hat_vae, x_b, reduction="sum") / x_b.size(0)
+        kl_vae = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp()) / x_b.size(0)
+        loss_vae = recon_vae + kl_vae
+        opt_vae2d.zero_grad()
+        loss_vae.backward()
+        opt_vae2d.step()
+
+print(f"Trained 2D Autoencoder & 2D VAE in {time.time() - t0:.1f}s")
+
+# Collect 2D latent encodings of 3,000 test images from both models
+ae_2d.eval()
+vae_2d.eval()
+z_ae_list, z_vae_list, y_list = [], [], []
+with torch.no_grad():
+    for x_b, y_b in test_loader:
+        x_b = x_b.to(device)
+        z_ae_list.append(ae_2d.encode(x_b).cpu().numpy())
+        mu_v, logvar_v = vae_2d.encode(x_b)
+        z_vae_list.append(vae_2d.reparameterize(mu_v, logvar_v).cpu().numpy())
+        y_list.append(y_b.numpy())
+        if sum(len(a) for a in y_list) >= 3000:
+            break
+
+z_ae_all = np.vstack(z_ae_list)[:3000]
+z_vae_all = np.vstack(z_vae_list)[:3000]
+y_all = np.concatenate(y_list)[:3000]
+
+# ==============================================================================
+# FIGURE 1: 2D LATENT SPACE GEOMETRY (AE vs. VAE vs. N(0, I) Prior)
+# ==============================================================================
+fig, axes = plt.subplots(1, 2, figsize=(14, 5.8))
+theta_circle = np.linspace(0, 2 * np.pi, 200)
+
+# Panel 1: Deterministic Autoencoder Latent Space
+ax = axes[0]
+sc1 = ax.scatter(z_ae_all[:, 0], z_ae_all[:, 1], c=y_all, cmap="tab10", s=8, alpha=0.7)
+# Overlay the 2-sigma circle of N(0, I) where standard prior sampling draws from!
+ax.plot(2.0 * np.cos(theta_circle), 2.0 * np.sin(theta_circle), color="red", lw=2.5, linestyle="--", label="Prior Sampling Region $\\mathcal{N}(0, I)$ ($2\\sigma$ radius)")
+ax.scatter([0], [0], color="red", s=90, marker="+", zorder=10)
+ax.set_title("Deterministic Autoencoder Latent Space $z = f_\\phi(x) \\in \\mathbb{R}^2$\nUnbounded scale, jagged islands & huge empty gaps! $\\mathcal{N}(0, I)$ misses most modes!", fontsize=10.5, fontweight="bold")
+ax.set_xlabel("Latent Dimension $z_1$")
+ax.set_ylabel("Latent Dimension $z_2$")
+ax.legend(loc="upper right", fontsize=8.5, framealpha=0.95)
+ax.grid(alpha=0.3)
+plt.colorbar(sc1, ax=ax, ticks=range(10), label="Digit Class (0-9)")
+
+# Panel 2: Variational Autoencoder Latent Space
+ax2 = axes[1]
+sc2 = ax2.scatter(z_vae_all[:, 0], z_vae_all[:, 1], c=y_all, cmap="tab10", s=8, alpha=0.7)
+ax2.plot(2.0 * np.cos(theta_circle), 2.0 * np.sin(theta_circle), color="red", lw=2.5, linestyle="--", label="Prior Sampling Region $\\mathcal{N}(0, I)$ ($2\\sigma$ radius)")
+ax2.set_xlim(-3.5, 3.5)
+ax2.set_ylim(-3.5, 3.5)
+ax2.set_title("Variational Autoencoder Latent Space $z \\sim q_\\phi(z \\mid x) \\in \\mathbb{R}^2$\nKL penalty + noise packs all 10 classes smoothly inside $\\mathcal{N}(0, I)$ with zero gaps!", fontsize=10.5, fontweight="bold")
+ax2.set_xlabel("Latent Dimension $z_1$")
+ax2.set_ylabel("Latent Dimension $z_2$")
+ax2.legend(loc="upper right", fontsize=8.5, framealpha=0.95)
+ax2.grid(alpha=0.3)
+plt.colorbar(sc2, ax=ax2, ticks=range(10), label="Digit Class (0-9)")
+
+plt.tight_layout()
+plt.savefig(os.path.join(FIG_DIR, "task1_ae_vs_vae_latent_space_2d.png"), bbox_inches="tight")
+plt.show()
+
+# ==============================================================================
+# FIGURE 2: WHY SAMPLING FROM AE FAILS (PRIOR SAMPLES & 2D MANIFOLD HOLES)
+# ==============================================================================
+with torch.no_grad():
+    # 1. Sample z ~ N(0, I) and decode with both AE and VAE
+    z_prior = torch.randn(32, 2, device=device)
+    ae_prior_samples = ae_2d.decode(z_prior).cpu()
+    vae_prior_samples = vae_2d.decode(z_prior).cpu()
+
+    # 2. Decode a 10x10 uniform grid across [-2.5, +2.5]^2 (and across the AE's full bounding box)
+    grid_vals = np.linspace(-2.2, 2.2, 10)
+    gx_v, gy_v = np.meshgrid(grid_vals, grid_vals)
+    z_grid_unit = torch.from_numpy(np.c_[gx_v.ravel(), gy_v.ravel()].astype(np.float32)).to(device)
+    vae_manifold = vae_2d.decode(z_grid_unit).cpu()
+
+    # For AE, even if we span its 5th-to-95th percentile range, it hits empty gaps between islands!
+    p5, p95 = np.percentile(z_ae_all, [5, 95], axis=0)
+    gx_a, gy_a = np.meshgrid(np.linspace(p5[0], p95[0], 10), np.linspace(p5[1], p95[1], 10))
+    z_grid_ae = torch.from_numpy(np.c_[gx_a.ravel(), gy_a.ravel()].astype(np.float32)).to(device)
+    ae_manifold = ae_2d.decode(z_grid_ae).cpu()
+
+fig, axes = plt.subplots(1, 4, figsize=(16, 4.3))
+
+axes[0].imshow(make_grid(ae_prior_samples, nrow=4, padding=2, pad_value=0.3)[0].numpy(), cmap="gray", vmin=0, vmax=1)
+axes[0].set_title("1. AE Decoded from $z \\sim \\mathcal{N}(0, I)$\n(FAILS: Collapses to 1 mode / garbage!)", fontsize=9.5, fontweight="bold", color="#b00020")
+axes[0].axis("off")
+
+axes[1].imshow(make_grid(vae_prior_samples, nrow=4, padding=2, pad_value=0.3)[0].numpy(), cmap="gray", vmin=0, vmax=1)
+axes[1].set_title("2. VAE Decoded from $z \\sim \\mathcal{N}(0, I)$\n(SUCCEEDS: Diverse digits across classes!)", fontsize=9.5, fontweight="bold", color="#006400")
+axes[1].axis("off")
+
+axes[2].imshow(make_grid(ae_manifold, nrow=10, padding=1, pad_value=0.3)[0].numpy(), cmap="gray", vmin=0, vmax=1)
+axes[2].set_title("3. AE 2D Latent Grid (5%–95% Box)\n(Broken 'Dead Zones' in Empty Gaps!)", fontsize=9.5, fontweight="bold", color="#b00020")
+axes[2].axis("off")
+
+axes[3].imshow(make_grid(vae_manifold, nrow=10, padding=1, pad_value=0.3)[0].numpy(), cmap="gray", vmin=0, vmax=1)
+axes[3].set_title("4. VAE 2D Latent Grid ($[-2.2, 2.2]^2$)\n(Smooth, Continuous Digit Manifold!)", fontsize=9.5, fontweight="bold", color="#006400")
+axes[3].axis("off")
+
+plt.suptitle("Why You Cannot Sample from a Deterministic Autoencoder vs. a Probabilistic Generative Model (VAE)", fontsize=12, fontweight="bold", y=1.03)
+plt.tight_layout()
+plt.savefig(os.path.join(FIG_DIR, "task1_why_ae_sampling_fails_manifold.png"), bbox_inches="tight")
+plt.show()
+""")
+
+# ==============================================================================
 # CELL 5: EXPERIMENT 1B — MODEL 1: VARIATIONAL AUTOENCODER (CONV-VAE)
 # ==============================================================================
 add_markdown(r"""
