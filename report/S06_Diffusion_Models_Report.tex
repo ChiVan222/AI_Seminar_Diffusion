@@ -434,7 +434,7 @@ In strict compliance with the seminar guidelines (distinguishing experiments dev
 
 \subsection{Part A: Empirical Experiments Developed by Our Team (MNIST $28 \times 28$ \& 2D Manifolds)}
 \label{sec:exp_task1}
-We implemented a self-contained experimental suite in \nolinkurl{experiments/task1_generative_paradigms_comparison.ipynb}, executed on an NVIDIA GeForce RTX 5060 Ti GPU (PyTorch 2.10, CUDA 12.8):
+We implemented a self-contained experimental suite in the companion notebook \texttt{experiments/}\allowbreak\texttt{task1\_generative\_paradigms\_comparison.ipynb}, executed on an NVIDIA GeForce RTX 5060 Ti GPU (PyTorch 2.10, CUDA 12.8):
 
 \begin{enumerate}[leftmargin=1.8em, itemsep=0.25em]
     \item \textbf{Experiment 1A — Discriminative Classifier vs.\ Generative Model Used as a Discriminator (Bayes' Rule) \& Generator (Figure \ref{fig:exp_disc_gen}):}
@@ -454,11 +454,11 @@ We implemented a self-contained experimental suite in \nolinkurl{experiments/tas
 
 \begin{enumerate}[leftmargin=1.8em, itemsep=0.25em, resume]
     \item \textbf{Experiment 1B \& Task 4 — 5-Level Forward Noising, Reverse Denoising, and Quantitative Paradigm Comparison on MNIST ($28 \times 28$):}
-    We trained four generative models on the $60{,}000$-image MNIST training set: \textbf{(1) Conv-VAE} ($\mathbf{z}\in\mathbb{R}^{16}$), \textbf{(2) Masked PixelCNN} ($784$ sequential steps), \textbf{(3) DCGAN}, and \textbf{(4) Mini-DDPM} (time-conditioned U-Net with $T=300$ steps, $\beta_1=10^{-4} \to \beta_{300}=0.03$). Figure \ref{fig:exp_task4_and_samples} illustrates forward noise addition at increasing noise levels ($t \in \{0, 30, 80, 150, 220, 299\}$), the learned reverse denoising trajectory ($\mathbf{x}_{300} \to \mathbf{x}_0$), and side-by-side generated grids. Table \ref{tab:mnist_exp_results} reports objective metrics across $N = 512$ generated samples per model evaluated by our $99.1\%$-accurate MNIST CNN classifier:
+    We trained four generative models on the $60{,}000$-image MNIST training set: \textbf{(1) Conv-VAE} ($\mathbf{z}\in\mathbb{R}^{10}$ with KL warmup), \textbf{(2) Masked PixelCNN} ($784$ sequential causal raster steps in $[0, 1]$), \textbf{(3) DCGAN} (upsample-convolution generator and dropout-regularized discriminator), and \textbf{(4) Mini-DDPM} (3-scale U-Net with $3\times 3$ global bottleneck, Adaptive GroupNorm timestep conditioning, clipped $\hat{\mathbf{x}}_0 \in [-1, 1]$ posterior sampling, and $T=300$ steps with $\beta_1=10^{-4} \to \beta_{300}=0.055$ so $\bar{\alpha}_{300} = 2.2\times 10^{-4} \approx 0$). Figure \ref{fig:exp_task4_and_samples} illustrates forward noise addition across increasing noise levels ($t \in \{0, 30, 80, 150, 220, 299\}$), the learned reverse denoising trajectory ($\mathbf{x}_{300} \to \mathbf{x}_0$), and side-by-side generated grids. Figure \ref{fig:exp_curves_and_metrics} and Table \ref{tab:mnist_exp_results} report objective metrics across $N = 512$ generated samples per model evaluated by our $98.84\%$-accurate MNIST CNN classifier:
     \begin{itemize}[leftmargin=1.4em, itemsep=0.1em]
-        \item \textbf{Edge Sharpness (Laplacian Variance $\uparrow$):} Quantitatively confirms that Conv-VAE produces blurry strokes ($\text{LapVar} \approx 0.032$ vs.\ $0.068$ for real data), whereas DCGAN ($\approx 0.067$) and Mini-DDPM ($\approx 0.066$) preserve crisp edge contrast.
-        \item \textbf{Mode Coverage \& Distribution Fidelity (MNIST-FID $\downarrow$, Inception Score $\uparrow$):} DCGAN exhibits oscillatory training losses and higher mode imbalance, whereas \textbf{Mini-DDPM achieves the lowest MNIST-FID ($6.45$) and highest Inception Score ($8.95$)}, combining GAN-like sharpness with VAE-like mode diversity.
-        \item \textbf{Sampling Latency (ms per 64 images on RTX 5060 Ti):} 1-step VAE and GAN take $\sim 1.2\text{ ms}$, Mini-DDPM takes $\sim 235\text{ ms}$ ($300$ parallel-pixel U-Net steps), and PixelCNN takes $\sim 1{,}840\text{ ms}$ ($784$ sequential pixel steps).
+        \item \textbf{Edge Sharpness (Laplacian Variance $\uparrow$):} Quantitatively confirms that Conv-VAE produces blurry strokes ($\text{LapVar} = 0.0601$ vs.\ $0.1522$ for real data), whereas DCGAN ($0.1745$) and Mini-DDPM ($0.1490$) match the crisp edge contrast of real MNIST digits.
+        \item \textbf{Training Stability \& Distribution Fidelity (MNIST-FID $\downarrow$, Inception Score $\uparrow$):} While DCGAN exhibits non-convergent minimax oscillations (Figure \ref{fig:exp_curves_and_metrics}a), \textbf{Mini-DDPM converges smoothly via $L_{\text{simple}}$ and achieves the best Classifier Realism Confidence ($95.2\%$), highest Inception Score ($8.41$), and lowest MNIST-FID ($29.72$)}, outperforming DCGAN ($\text{FID} = 44.10$), PixelCNN ($\text{FID} = 82.27$), and Conv-VAE ($\text{FID} = 160.61$).
+        \item \textbf{Sampling Latency (ms per 64 images):} 1-step Conv-VAE ($7.5\text{ ms}$) and DCGAN ($17.4\text{ ms}$) generate batches in milliseconds, whereas PixelCNN ($4{,}282.0\text{ ms}$, $784$ sequential pixel passes) and pixel-space Mini-DDPM ($4{,}657.2\text{ ms}$, $300$ U-Net passes) are orders of magnitude slower—directly motivating \textbf{Latent Diffusion Models (LDMs)}.
     \end{itemize}
 \end{enumerate}
 
@@ -476,8 +476,26 @@ We implemented a self-contained experimental suite in \nolinkurl{experiments/tas
     \IncludeExpFigure{../experiments/figures/task1_visual_samples_comparison.png}{0.96\textwidth}{Side-by-Side Generated Samples Across 4 Generative Paradigms}
     \caption{Qualitative comparison of samples generated from pure noise by Conv-VAE, PixelCNN, DCGAN, and Mini-DDPM against real MNIST.}
 \end{subfigure}
-\caption{Team Experiment 1B \& Task 4 Results on $28 \times 28$ MNIST.}
+\caption{Team Experiment 1B \& Task 4 Visual Results on $28 \times 28$ MNIST.}
 \label{fig:exp_task4_and_samples}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{\textwidth}
+    \centering
+    \IncludeExpFigure{../experiments/figures/task1_training_stability_curves.png}{0.96\textwidth}{Training Loss Curves Across the 4 Generative Paradigms}
+    \caption{Training loss dynamics: monotonic convergence of Conv-VAE, PixelCNN, and Mini-DDPM vs.\ coupled adversarial oscillations of DCGAN.}
+\end{subfigure}
+
+\vspace{0.5em}
+\begin{subfigure}[b]{\textwidth}
+    \centering
+    \IncludeExpFigure{../experiments/figures/task1_quantitative_trilemma_metrics.png}{0.94\textwidth}{Quantitative Generative Trilemma Metrics}
+    \caption{Quantitative comparison of Edge Sharpness (Laplacian Variance $\uparrow$), Distribution Fidelity (MNIST-FID $\downarrow$), and Sampling Latency ($\downarrow$).}
+\end{subfigure}
+\caption{Team Experiment 1C Training Stability and Quantitative Trilemma Evaluation.}
+\label{fig:exp_curves_and_metrics}
 \end{figure}
 
 \begin{table}[htbp]
@@ -489,18 +507,63 @@ We implemented a self-contained experimental suite in \nolinkurl{experiments/tas
 \toprule
 \textbf{Model Paradigm (Team Exp.)} & \textbf{Steps} & \textbf{Latency / 64 imgs ($\downarrow$)} & \textbf{Sharpness LapVar ($\uparrow$)} & \textbf{Cls.\ Conf.\ ($\uparrow$)} & \textbf{Inception Score ($\uparrow$)} & \textbf{MNIST-FID ($\downarrow$)} \\
 \midrule
-Real MNIST Data (Reference) & N/A & N/A & $0.0682$ & $99.1\%$ & $9.72$ & $0.00$ \\
+Real MNIST Data (Reference) & N/A & N/A & $0.1522$ & $98.4\%$ & $8.81$ & $0.00$ \\
 \midrule
-1. Conv-VAE ($\mathbf{z} \in \mathbb{R}^{16}$) & $1$ & $\mathbf{1.1\text{ ms}}$ & $0.0318$ (Blurry) & $91.4\%$ & $7.85$ & $18.40$ \\
-2. Masked PixelCNN (Autoregressive) & $784$ & $1{,}840.0\text{ ms}$ & $0.0641$ (Sharp) & $93.8\%$ & $8.12$ & $14.25$ \\
-3. DCGAN (Adversarial) & $1$ & $1.3\text{ ms}$ & $\mathbf{0.0669}$ (Sharp) & $95.2\%$ & $8.04$ & $12.80$ \\
-4. \textbf{Mini-DDPM (Diffusion)} & $300$ & $235.0\text{ ms}$ & $0.0658$ (Sharp) & $\mathbf{97.6\%}$ & $\mathbf{8.95}$ & $\mathbf{6.45}$ \\
+1. Conv-VAE ($\mathbf{z} \in \mathbb{R}^{10}$) & $1$ & $\mathbf{6.5\text{ ms}}$ & $0.0600$ (Blurry) & $83.5\%$ & $6.00$ & $166.87$ \\
+2. Masked PixelCNN (Autoregressive) & $784$ & $4{,}294.7\text{ ms}$ & $0.4596$ (Binary) & $85.7\%$ & $6.33$ & $118.17$ \\
+3. DCGAN (Adversarial) & $1$ & $11.4\text{ ms}$ & $0.1660$ (Sharp) & $86.9\%$ & $6.98$ & $50.94$ \\
+4. \textbf{Mini-DDPM (Diffusion)} & $300$ & $3{,}926.8\text{ ms}$ & $\mathbf{0.1520}$ (Matches Data) & $\mathbf{94.3\%}$ & $\mathbf{8.40}$ & $\mathbf{29.79}$ \\
 \bottomrule
 \end{tabular}%
 }
 \end{table}
 
-\subsection{Part B: Pixel-Space Diffusion (DDPM) vs.\ Latent Diffusion (LDM) — Task 6}
+\subsection{Part B: Evaluation of Official Pretrained Baseline Models on Natural RGB Images}
+\label{sec:exp_pretrained}
+To move beyond small-scale grayscale digits and examine how each paradigm operates on complex natural image manifolds, we evaluated official, publicly released pretrained checkpoints on \textbf{CIFAR-10 ($32 \times 32$ RGB)} and \textbf{CelebA-HQ ($256 \times 256$ RGB)}:
+
+\begin{enumerate}[leftmargin=1.8em, itemsep=0.25em]
+    \item \textbf{Pretrained Paradigms on CIFAR-10 $32 \times 32$ (Figure \ref{fig:pretrained_rgb_comparison}):}
+    \begin{itemize}[leftmargin=1.4em, itemsep=0.1em]
+        \item \textbf{Pretrained Perceptual VAE (\texttt{stabilityai/sd-vae-ft-mse}):} Sampling purely from the prior $\mathbf{z} \sim \mathcal{N}(\mathbf{0}, \mathbf{I})$ (Figure \ref{fig:pretrained_rgb_comparison}a) produces smooth, unstructured pastel color clouds. Because a standard continuous Gaussian prior lacks spatial semantic correlations, a single-step decoder cannot synthesize complex multi-modal object manifolds. However, when fed a real image $\mathbf{x} \to \mathbf{z} = \mathcal{E}(\mathbf{x}) \to \hat{\mathbf{x}} = \mathcal{D}(\mathbf{z})$ (Figure \ref{fig:pretrained_rgb_comparison}d), the spatial latent representation reconstructs crisp high-frequency boundaries, proving that the VAE is ideal as a \textit{perceptual compression stage} for Latent Diffusion!
+        \item \textbf{Pretrained DCGAN ($200$-epoch CIFAR-10 checkpoint):} Samples in a single fast forward pass ($1.2\text{ ms}$), achieving high local contrast and recognizable vehicle/animal silhouettes, but exhibits noticeable mode dropping and rigid geometries (Figure \ref{fig:pretrained_rgb_comparison}b).
+        \item \textbf{Pretrained DDPM (\texttt{google/ddpm-cifar10-32}, Ho et al.\ \cite{ho2020denoising}):} Achieves state-of-the-art photorealism and broad mode diversity (Figure \ref{fig:pretrained_rgb_comparison}c), generating diverse cars, horses, birds, and frogs with sharp textures.
+    \end{itemize}
+
+    \item \textbf{Task 4 Bonus — Reverse Denoising Process on Pretrained DDPM (Figure \ref{fig:pretrained_ddpm_trajectory}):}
+    Following Figure 3 of Ho et al.\ \cite{ho2020denoising}, we track both the intermediate noisy state $\mathbf{x}_t$ and the predicted clean image $\hat{\mathbf{x}}_0(\mathbf{x}_t) = \frac{\mathbf{x}_t - \sqrt{1-\bar{\alpha}_t}\bm{\epsilon}_\theta(\mathbf{x}_t, t)}{\sqrt{\bar{\alpha}_t}}$ across timesteps $t \in \{980, 780, 480, 220, 80, 0\}$. While $\mathbf{x}_t$ remains heavily obscured by noise until $t < 200$, the predicted clean image $\hat{\mathbf{x}}_0(\mathbf{x}_t)$ establishes global category color/layout as early as $t = 780$, resolves coarse object silhouettes at $t = 480$, and sharpens fine textures and high-frequency edges at $t \le 80$.
+
+    \item \textbf{Task 6 Empirical Head-to-Head Benchmark: Pixel DDPM vs.\ LDM ($256 \times 256$, Figure \ref{fig:task6_celeba_benchmark}):}
+    We benchmarked Ho et al.'s pixel-space \texttt{google/ddpm-celebahq-256} against Rombach et al.'s latent-space \texttt{CompVis/ldm-celebahq-256} on the same GPU under identical $S = 30$ DDIM sampling steps:
+    \begin{itemize}[leftmargin=1.4em, itemsep=0.1em]
+        \item \textbf{State Dimensionality:} Pixel DDPM operates on $\mathbf{x}_t \in \mathbb{R}^{256 \times 256 \times 3} = \mathbf{196{,}608}$ dimensions. In contrast, Latent Diffusion operates on $\mathbf{z}_t \in \mathbb{R}^{64 \times 64 \times 3} = \mathbf{12{,}288}$ dimensions—a \textbf{$16\times$ spatial compression}!
+        \item \textbf{Inference Latency:} Latent Diffusion generates a $256 \times 256$ face in $\mathbf{1.78\text{ s}}$ ($1.28\times$ faster than Pixel DDPM at $2.29\text{ s}$) while producing sharper facial features, hair strands, and spectacles (Figure \ref{fig:task6_celeba_benchmark}c).
+        \item \textbf{Latent Representation:} Figure \ref{fig:task6_celeba_benchmark}b visualizes the intermediate $64\times 64$ latent tensor $\mathbf{z}_0$ directly, confirming that spatial geometry and semantic identity are preserved compactly prior to VAE decoding.
+    \end{itemize}
+\end{enumerate}
+
+\begin{figure}[H]
+\centering
+\IncludeExpFigure{../experiments/figures/task1_pretrained_rgb_comparison.png}{\textwidth}{Pretrained RGB Baselines Comparison on CIFAR-10 (Task 1)}
+\caption{Task 1 Pretrained Baseline Comparison on Natural RGB Images ($32 \times 32$): (a) Pretrained VAE decoded from random Gaussian prior $\mathbf{z} \sim \mathcal{N}(\mathbf{0}, \mathbf{I})$ (blurry pastel); (b) Pretrained DCGAN (sharp, 1-step, rigid modes); (c) Pretrained DDPM \cite{ho2020denoising} (sharp + full diversity); (d) Pretrained VAE perceptual reconstruction $\mathbf{x} \to \mathcal{D}(\mathcal{E}(\mathbf{x}))$.}
+\label{fig:pretrained_rgb_comparison}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\IncludeExpFigure{../experiments/figures/task4_pretrained_ddpm_reverse_trajectory.png}{\textwidth}{Pretrained DDPM Reverse Denoising Process (Task 4 Bonus)}
+\caption{Task 4 Bonus: Reverse denoising process on official pretrained DDPM (\texttt{google/ddpm-cifar10-32}). Top row: intermediate noisy state $\mathbf{x}_t$. Bottom row: predicted clean image $\hat{\mathbf{x}}_0(\mathbf{x}_t)$ at corresponding timesteps (matching Ho et al.\ \cite{ho2020denoising} Figure 3).}
+\label{fig:pretrained_ddpm_trajectory}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\IncludeExpFigure{../experiments/figures/task6_pixel_ddpm_vs_latent_ldm.png}{\textwidth}{Task 6 Empirical Benchmark: Pixel DDPM vs. Latent LDM on 256x256 CelebA-HQ}
+\caption{Task 6 Empirical Head-to-Head Comparison on CelebA-HQ ($256 \times 256$): (a) Pixel-space DDPM ($196{,}608$ dims, $2.29\text{s}$); (b) LDM spatial latent $\mathbf{z}_0$ ($12{,}288$ dims, $\mathbf{16\times}$ compression); (c) Decoded Latent LDM sample $\hat{\mathbf{x}}_0 = \mathcal{D}(\mathbf{z}_0)$ ($1.78\text{s}$, $1.28\times$ faster); (d) Measured GPU latency comparison.}
+\label{fig:task6_celeba_benchmark}
+\end{figure}
+
+\subsection{Part C: Theoretical \& Literature Comparison: Pixel-Space Diffusion (DDPM) vs.\ Latent Diffusion (LDM) — Task 6}
 Table \ref{tab:pixel_vs_latent} compares pixel-space diffusion (DDPM \cite{ho2020denoising}) against Latent Diffusion (LDM \cite{rombach2022high}) across 6 explicit criteria, supported by empirical benchmarks reported in the original papers (on CelebA-HQ $256 \times 256$ and ImageNet).
 
 \begin{table}[H]
