@@ -258,6 +258,21 @@ Consider a realistic non-Gaussian bimodal dataset with two sharp modes at $x_0 =
 \label{fig:ddpm_bidirectional}
 \end{figure}
 
+\paragraph{Score-Based Vector Field Interpretation of Training and Reverse Diffusion (Figure \ref{fig:score_field_viz}):}
+By \textbf{Tweedie's Formula} and \textbf{Denoising Score Matching} \cite{ho2020denoising}, the conditional score of the forward perturbation kernel $q(\mathbf{x}_t \mid \mathbf{x}_0) = \mathcal{N}(\sqrt{\bar{\alpha}_t}\mathbf{x}_0, (1-\bar{\alpha}_t)\mathbf{I})$ is $\nabla_{\mathbf{x}_t}\log q(\mathbf{x}_t \mid \mathbf{x}_0) = -\frac{\mathbf{x}_t - \sqrt{\bar{\alpha}_t}\mathbf{x}_0}{1-\bar{\alpha}_t} = -\frac{\bm{\epsilon}}{\sqrt{1-\bar{\alpha}_t}}$. Consequently, training $\bm{\epsilon}_\theta(\mathbf{x}_t, t)$ via $L_{\text{simple}}$ is mathematically equivalent to learning the \textbf{marginal score vector field} across space at every noise scale $t$:
+\begin{equation}
+    \mathbf{s}_\theta(\mathbf{x}_t, t) := -\frac{\bm{\epsilon}_\theta(\mathbf{x}_t, t)}{\sqrt{1 - \bar{\alpha}_t}} \approx \nabla_{\mathbf{x}_t}\log q_t(\mathbf{x}_t)
+    \label{eq:score_equivalence}
+\end{equation}
+As visualized in Figure \ref{fig:score_field_viz} (developed by our team on our 4-mode 2D manifold), during training each corrupted point $\mathbf{x}_t$ receives a target vector $-\sqrt{1-\bar{\alpha}_t}\bm{\epsilon}$ pointing back to its clean source $\sqrt{\bar{\alpha}_t}\mathbf{x}_0$ (Figure \ref{fig:score_field_viz}a); minimizing MSE averages overlapping targets into the steepest-ascent vector field $\nabla_{\mathbf{x}_t}\log q_t(\mathbf{x}_t)$ with $\mathbf{99.7\%}$ cosine alignment (Figure \ref{fig:score_field_viz}b--c). During reverse sampling ($t = 95 \to 55 \to 25 \to 1$, Figure \ref{fig:score_field_viz}d--g), the learned vector field dynamically evolves from a single global radial basin at high noise ($t=95$), bifurcates across saddle ridges at medium noise ($t=55$), and funnels trajectories directly onto the four sharp data manifolds at $t=1$.
+
+\begin{figure}[H]
+\centering
+\IncludeExpFigure{../experiments/figures/task2_score_field_training_and_reverse.png}{\textwidth}{Score-Based Vector Field Visualization for Training and Reverse Diffusion}
+\caption{Visualizing the diffusion score vector field $\mathbf{s}_\theta(\mathbf{x}_t, t) = -\bm{\epsilon}_\theta(\mathbf{x}_t, t)/\sqrt{1-\bar{\alpha}_t} \approx \nabla_{\mathbf{x}_t}\log q_t(\mathbf{x}_t)$ developed by our team. \textbf{Top row (Training):} (a) Forward noise jumps $+\sqrt{1-\bar{\alpha}_t}\bm{\epsilon}$; (b) MSE training aligns $-\sqrt{1-\bar{\alpha}_t}\bm{\epsilon}_\theta$ toward the posterior expectation $\mathbb{E}[\sqrt{\bar{\alpha}_t}\mathbf{x}_0\mid\mathbf{x}_t]$; (c) Global learned score field vs.\ exact analytical score ($99.7\%$ cosine alignment). \textbf{Bottom row (Reverse Diffusion $t=95 \to 1$):} Evolution of $\mathbf{s}_\theta(\mathbf{x}, t)$, stochastic particle cloud (pink), and tracked reverse trajectories (cyan) locking onto the 4 data modes.}
+\label{fig:score_field_viz}
+\end{figure}
+
 % ==============================================================================
 % 3.2 SECTION III & TASK 3: FORMAL EQUATIONS & 1D WORKED NUMERICAL EXAMPLE
 % ==============================================================================

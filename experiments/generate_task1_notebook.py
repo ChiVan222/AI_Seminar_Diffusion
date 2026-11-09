@@ -374,10 +374,273 @@ plt.show()
 """)
 
 # ==============================================================================
+# CELL 3B: VISUALIZING THE DIFFUSION SCORE VECTOR FIELD (TRAINING & REVERSE PROCESS)
+# ==============================================================================
+add_markdown(r"""
+### 1.2 Visualizing the Diffusion Score Vector Field: Training & Reverse Denoising Dynamics (Task 2)
+Inspired by the **Welch Labs / 3Blue1Brown** visual intuition (*"But how do AI images and videos actually work?"*), we now visualize **how a diffusion model learns a continuous compass/vector field** across space and follows it to turn pure noise into coherent data:
+
+1. **Mathematical Equivalence Between Noise Prediction $\bm{\epsilon}_\theta$ and the Score Function $\nabla_{\mathbf{x}_t}\log q_t(\mathbf{x}_t)$:**
+   * In forward diffusion, $q(\mathbf{x}_t \mid \mathbf{x}_0) = \mathcal{N}(\sqrt{\bar{\alpha}_t}\mathbf{x}_0, (1-\bar{\alpha}_t)\mathbf{I})$, so the conditional score is $\nabla_{\mathbf{x}_t}\log q(\mathbf{x}_t \mid \mathbf{x}_0) = -\frac{\mathbf{x}_t - \sqrt{\bar{\alpha}_t}\mathbf{x}_0}{1-\bar{\alpha}_t} = -\frac{\bm{\epsilon}}{\sqrt{1-\bar{\alpha}_t}}$.
+   * By **Tweedie's Formula** and **Denoising Score Matching** (Vincent, 2011; Song & Ermon, 2019; Ho et al., 2020), minimizing $L_{\text{simple}}(\theta) = \mathbb{E}[\|\bm{\epsilon} - \bm{\epsilon}_\theta(\mathbf{x}_t, t)\|^2]$ trains the network to output the **marginal score vector field**:
+     $$\mathbf{s}_\theta(\mathbf{x}_t, t) = -\frac{\bm{\epsilon}_\theta(\mathbf{x}_t, t)}{\sqrt{1 - \bar{\alpha}_t}} \approx \nabla_{\mathbf{x}_t}\log q_t(\mathbf{x}_t)$$
+   * Every arrow $\mathbf{s}_\theta(\mathbf{x}_t, t)$ points **uphill toward higher probability density** (toward the posterior expectation $\mathbb{E}[\sqrt{\bar{\alpha}_t}\mathbf{x}_0 \mid \mathbf{x}_t]$).
+2. **Time-Dependent Evolution of the Score Field ($t = T \to 1$):**
+   * **High Noise ($t=95$):** All 4 data modes blur into a single wide Gaussian; arrows point radially inward from empty space toward the global center.
+   * **Bifurcation ($t=55$):** The single basin splits along watershed ridges ($x_1=0, x_2=0$) into 4 distinct mode basins.
+   * **Mode Funneling ($t=25$) & Manifold Lock ($t=1$):** Arrows form local funnels around each tilted Gaussian cluster, steering reverse trajectories onto the exact data manifold.
+""")
+
+add_code(r"""
+# Exact analytical marginal density q_t(x) and exact score \nabla_x \log q_t(x) for our 4-mode Gaussian Mixture
+SCALE_FACTOR = 2.5
+scaled_means = [m / SCALE_FACTOR for m in learned_means_2d]
+scaled_covs  = [c / (SCALE_FACTOR**2) for c in learned_covs_2d]
+
+def exact_marginal_density_and_score(pts_unscaled, alpha_bar_t):
+    pts = pts_unscaled / SCALE_FACTOR
+    N = pts.shape[0]
+    K = len(scaled_means)
+    comp_probs = np.zeros((N, K), dtype=np.float64)
+    comp_scores = np.zeros((N, K, 2), dtype=np.float64)
+    for k in range(K):
+        mu_t = np.sqrt(alpha_bar_t) * scaled_means[k]
+        cov_t = alpha_bar_t * scaled_covs[k] + (1.0 - alpha_bar_t) * np.eye(2)
+        inv_cov_t = np.linalg.inv(cov_t)
+        det_cov_t = np.linalg.det(cov_t)
+        diff = pts - mu_t
+        mahal = np.sum((diff @ inv_cov_t) * diff, axis=1)
+        comp_probs[:, k] = (1.0 / (2.0 * np.pi * np.sqrt(det_cov_t))) * np.exp(-0.5 * mahal)
+        comp_scores[:, k, :] = -(diff @ inv_cov_t)
+    marginal_p = np.mean(comp_probs, axis=1) + 1e-30
+    weights = (comp_probs / K) / marginal_p[:, None]
+    exact_score_scaled = np.sum(weights[:, :, None] * comp_scores, axis=1)
+    return marginal_p, exact_score_scaled
+
+class ScoreNet2D(nn.Module):
+    def __init__(self, T=100):
+        super().__init__()
+        self.T = T
+        self.net = nn.Sequential(
+            nn.Linear(2 + 16, 128), nn.SiLU(),
+            nn.Linear(128, 128), nn.SiLU(),
+            nn.Linear(128, 128), nn.SiLU(),
+            nn.Linear(128, 2)
+        )
+        betas = torch.linspace(1e-4, 0.05, T, device=device)
+        alphas = 1.0 - betas
+        self.register_buffer("betas", betas)
+        self.register_buffer("alphas", alphas)
+        self.register_buffer("alpha_bars", torch.cumprod(alphas, dim=0))
+
+    def time_emb(self, t_norm):
+        freqs = torch.exp(torch.arange(0, 8, dtype=torch.float32, device=t_norm.device) * -(np.log(100.0) / 8.0))
+        args = t_norm * freqs[None, :] * 10.0
+        return torch.cat([torch.sin(args), torch.cos(args)], dim=-1)
+
+    def forward(self, x_t, t_norm):
+        return self.net(torch.cat([x_t, self.time_emb(t_norm)], dim=-1))
+
+    @torch.no_grad()
+    def predict_score(self, pts_unscaled, t_idx):
+        pts_s = torch.from_numpy((pts_unscaled / SCALE_FACTOR).astype(np.float32)).to(device)
+        t_norm = torch.full((pts_s.size(0), 1), t_idx / self.T, device=device)
+        eps_pred = self.forward(pts_s, t_norm)
+        ab_t = self.alpha_bars[t_idx]
+        score = -eps_pred / torch.sqrt(1.0 - ab_t)
+        return score.cpu().numpy(), eps_pred.cpu().numpy()
+
+torch.manual_seed(42)
+score_ddpm = ScoreNet2D(T=100).to(device)
+opt_s = torch.optim.Adam(score_ddpm.parameters(), lr=3e-3)
+sched_s = torch.optim.lr_scheduler.CosineAnnealingLR(opt_s, T_max=1800, eta_min=1e-4)
+
+for _ in range(1800):
+    t_idx = torch.randint(0, score_ddpm.T, (X_2d_scaled.size(0),), device=device)
+    eps = torch.randn_like(X_2d_scaled)
+    ab = score_ddpm.alpha_bars[t_idx].unsqueeze(-1)
+    x_t = torch.sqrt(ab) * X_2d_scaled + torch.sqrt(1.0 - ab) * eps
+    t_norm = (t_idx.float() / score_ddpm.T).unsqueeze(-1)
+    loss_s = F.mse_loss(score_ddpm(x_t, t_norm), eps)
+    opt_s.zero_grad(); loss_s.backward(); opt_s.step(); sched_s.step()
+
+# Simulate stochastic particle cloud + 16 tracked reverse trajectories (12 outer + 4 inner saddle)
+torch.manual_seed(42)
+with torch.no_grad():
+    x_cur = torch.randn(300, 2, device=device)
+    cloud_history = [x_cur.cpu().numpy() * SCALE_FACTOR]
+    for t in reversed(range(score_ddpm.T)):
+        t_norm = torch.full((300, 1), t / score_ddpm.T, device=device)
+        eps_pred = score_ddpm(x_cur, t_norm)
+        a_t, ab_t, b_t = score_ddpm.alphas[t], score_ddpm.alpha_bars[t], score_ddpm.betas[t]
+        z = torch.randn_like(x_cur) if t > 0 else 0.0
+        x_cur = (1.0 / torch.sqrt(a_t)) * (x_cur - (b_t / torch.sqrt(1.0 - ab_t)) * eps_pred) + torch.sqrt(b_t) * 0.75 * z
+        cloud_history.append(x_cur.cpu().numpy() * SCALE_FACTOR)
+cloud_history = np.array(cloud_history)
+
+init_tracked_unscaled = np.array([
+    [-4.2, -3.8], [-3.9, -0.8], [-1.0, -4.1], [-0.55, -0.50],
+    [-4.1,  3.8], [-3.8,  0.9], [-0.9,  4.1], [-0.50,  0.55],
+    [ 4.1, -3.8], [ 3.9, -0.9], [ 1.1, -4.1], [ 0.55, -0.50],
+    [ 4.1,  3.9], [ 3.8,  0.9], [ 1.0,  4.1], [ 0.50,  0.55]
+], dtype=np.float32)
+
+with torch.no_grad():
+    x_tr = torch.from_numpy(init_tracked_unscaled / SCALE_FACTOR).to(device)
+    tracked_history = [x_tr.cpu().numpy() * SCALE_FACTOR]
+    for t in reversed(range(score_ddpm.T)):
+        t_norm = torch.full((x_tr.size(0), 1), t / score_ddpm.T, device=device)
+        eps_pred = score_ddpm(x_tr, t_norm)
+        a_t, ab_t, b_t = score_ddpm.alphas[t], score_ddpm.alpha_bars[t], score_ddpm.betas[t]
+        x_tr = (1.0 / torch.sqrt(a_t)) * (x_tr - 0.65 * (b_t / torch.sqrt(1.0 - ab_t)) * eps_pred)
+        tracked_history.append(x_tr.cpu().numpy() * SCALE_FACTOR)
+tracked_history = np.array(tracked_history)
+
+# Plot 2-Row Score Field Visualization
+import matplotlib.gridspec as gridspec
+fig = plt.figure(figsize=(19.5, 10.6))
+gs = gridspec.GridSpec(2, 12, figure=fig, height_ratios=[1.05, 1.0], hspace=0.35, wspace=0.85)
+
+g_lin = np.linspace(-4.8, 4.8, 120)
+gx_s, gy_s = np.meshgrid(g_lin, g_lin)
+g_pts = np.c_[gx_s.ravel(), gy_s.ravel()].astype(np.float32)
+
+q_lin = np.linspace(-4.3, 4.3, 16)
+qx_s, qy_s = np.meshgrid(q_lin, q_lin)
+q_pts = np.c_[qx_s.ravel(), qy_s.ravel()].astype(np.float32)
+
+def normalize_vectors_for_quiver(vec):
+    mag = np.linalg.norm(vec, axis=1, keepdims=True) + 1e-8
+    return (vec / mag) * np.tanh(mag * 0.38)
+
+# (a) Forward Noise Injection
+ax_a = fig.add_subplot(gs[0, 0:4])
+t_train_demo = 35
+ab_demo = float(score_ddpm.alpha_bars[t_train_demo].item())
+p_demo, _ = exact_marginal_density_and_score(g_pts, ab_demo)
+ax_a.contourf(gx_s, gy_s, p_demo.reshape(gx_s.shape), levels=20, cmap="Blues", alpha=0.60)
+ax_a.scatter(X_np[:, 0], X_np[:, 1], s=8, c="#1d3557", alpha=0.22, label="Clean Data Manifold $\\mathbf{x}_0 \\sim q(\\mathbf{x}_0)$")
+
+demo_idx = [12, 55, 360, 410, 720, 790, 1080, 1150]
+x0_demo = X_np[demo_idx]
+eps_demo = np.array([
+    [-0.95,  0.75], [ 0.85,  0.70], [-0.95,  0.80], [ 0.75,  0.90],
+    [ 0.90, -0.85], [-0.80, -0.90], [ 0.85,  0.90], [-0.85,  0.80]
+], dtype=np.float32)
+xt_demo = np.sqrt(ab_demo) * x0_demo + np.sqrt(1.0 - ab_demo) * (eps_demo * SCALE_FACTOR)
+
+for i in range(len(demo_idx)):
+    ax_a.annotate("", xy=xt_demo[i], xytext=np.sqrt(ab_demo)*x0_demo[i],
+                  arrowprops=dict(arrowstyle="-|>", color="#e63946", lw=1.8, ls="--", mutation_scale=12, shrinkA=3, shrinkB=3))
+ax_a.scatter(np.sqrt(ab_demo)*x0_demo[:, 0], np.sqrt(ab_demo)*x0_demo[:, 1], s=65, c="#2a9d8f", edgecolors="black", zorder=8, label="Scaled Clean Signal $\\sqrt{\\bar{\\alpha}_t}\\mathbf{x}_0$")
+ax_a.scatter(xt_demo[:, 0], xt_demo[:, 1], s=70, c="#e63946", marker="o", edgecolors="black", zorder=9, label="Noisy Training Sample $\\mathbf{x}_t$")
+ax_a.plot([], [], color="#e63946", lw=1.8, ls="--", label="Forward Noise $+\\sqrt{1-\\bar{\\alpha}_t}\\epsilon$")
+ax_a.set_title("(a) Training Step 1: Forward Noise Injection\nSample $\\mathbf{x}_0 \\sim q(\\mathbf{x}_0)$ and jump to $\\mathbf{x}_t = \\sqrt{\\bar{\\alpha}_t}\\mathbf{x}_0 + \\sqrt{1-\\bar{\\alpha}_t}\\epsilon$", fontsize=10.5, fontweight="bold")
+ax_a.set_xlim(-4.8, 4.8); ax_a.set_ylim(-4.8, 4.8); ax_a.set_xlabel("$x_1$"); ax_a.set_ylabel("$x_2$")
+ax_a.legend(loc="lower left", fontsize=7.6, framealpha=0.93)
+
+# (b) Training Target Vectors & Score Matching
+ax_b = fig.add_subplot(gs[0, 4:8])
+ax_b.contourf(gx_s, gy_s, p_demo.reshape(gx_s.shape), levels=20, cmap="Purples", alpha=0.55)
+ax_b.scatter(X_np[:, 0], X_np[:, 1], s=8, c="gray", alpha=0.20)
+_, eps_pred_demo = score_ddpm.predict_score(xt_demo, t_train_demo)
+pred_clean_scaled = xt_demo - np.sqrt(1.0 - ab_demo) * (eps_pred_demo * SCALE_FACTOR)
+
+for i in range(len(demo_idx)):
+    ax_b.annotate("", xy=np.sqrt(ab_demo)*x0_demo[i], xytext=xt_demo[i],
+                  arrowprops=dict(arrowstyle="-|>", color="#0096c7", lw=2.0, ls=":", mutation_scale=12, shrinkA=3, shrinkB=3))
+    ax_b.annotate("", xy=pred_clean_scaled[i], xytext=xt_demo[i],
+                  arrowprops=dict(arrowstyle="-|>", color="#ff9f1c", lw=2.3, ls="-", mutation_scale=13, shrinkA=3, shrinkB=3))
+ax_b.scatter(xt_demo[:, 0], xt_demo[:, 1], s=70, c="#e63946", edgecolors="black", zorder=9, label="Noisy Input $\\mathbf{x}_t$")
+ax_b.scatter(np.sqrt(ab_demo)*x0_demo[:, 0], np.sqrt(ab_demo)*x0_demo[:, 1], s=65, c="#2a9d8f", edgecolors="black", zorder=8, label="Specific Clean Source $\\sqrt{\\bar{\\alpha}_t}\\mathbf{x}_0$")
+ax_b.plot([], [], color="#0096c7", lw=2.0, ls=":", label="Sample Target $-\\sqrt{1-\\bar{\\alpha}_t}\\epsilon$ (to $\\mathbf{x}_0$)")
+ax_b.plot([], [], color="#ff9f1c", lw=2.3, ls="-", label="Learned $-\\sqrt{1-\\bar{\\alpha}_t}\\epsilon_\\theta(\\mathbf{x}_t, t)$ (to $\\mathbb{E}[\\mathbf{x}_0|\\mathbf{x}_t]$)")
+ax_b.set_title("(b) Training Step 2: Learning the Denoising Vector\nMinimizing $\\mathbb{E}[\\|\\epsilon - \\epsilon_\\theta(\\mathbf{x}_t,t)\\|^2]$ averages targets into the Score", fontsize=10.5, fontweight="bold")
+ax_b.set_xlim(-4.8, 4.8); ax_b.set_ylim(-4.8, 4.8); ax_b.set_xlabel("$x_1$"); ax_b.set_ylabel("$x_2$")
+ax_b.legend(loc="lower left", fontsize=7.4, framealpha=0.93)
+
+# (c) Learned Global Score Vector Field vs Analytical Score
+ax_c = fig.add_subplot(gs[0, 8:12])
+log_p_demo = np.log(p_demo.reshape(gx_s.shape) + 1e-12)
+ax_c.contourf(gx_s, gy_s, np.clip(log_p_demo, -10, None), levels=22, cmap="magma", alpha=0.84)
+_, exact_s_q = exact_marginal_density_and_score(q_pts, ab_demo)
+learned_s_q, _ = score_ddpm.predict_score(q_pts, t_train_demo)
+v_exact = normalize_vectors_for_quiver(exact_s_q)
+v_learn = normalize_vectors_for_quiver(learned_s_q)
+ax_c.quiver(qx_s, qy_s, v_exact[:, 0].reshape(qx_s.shape), v_exact[:, 1].reshape(qy_s.shape),
+            color="white", alpha=0.50, scale=11.0, width=0.0052, label="Exact Analytical Score $\\nabla_{\\mathbf{x}}\\log q_t(\\mathbf{x})$")
+ax_c.quiver(qx_s, qy_s, v_learn[:, 0].reshape(qx_s.shape), v_learn[:, 1].reshape(qy_s.shape),
+            color="#00f5d4", alpha=0.95, scale=11.0, width=0.0042, label="Learned Score $\\mathbf{s}_\\theta(\\mathbf{x}, t) = -\\epsilon_\\theta/\\sqrt{1-\\bar{\\alpha}_t}$")
+ax_c.scatter(X_np[::4, 0], X_np[::4, 1], s=6, c="cyan", alpha=0.22)
+cos_sim = np.mean(np.sum(exact_s_q * learned_s_q, axis=1) / (np.linalg.norm(exact_s_q, axis=1)*np.linalg.norm(learned_s_q, axis=1) + 1e-8))
+ax_c.set_title(f"(c) Learned Global Score Vector Field ($t={t_train_demo}$)\n$\\mathbf{{s}}_\\theta(\\mathbf{{x}},t) \\approx \\nabla_{{\\mathbf{{x}}}}\\log q_t(\\mathbf{{x}})$ (Cosine Alignment: {cos_sim:.1%})", fontsize=10.5, fontweight="bold")
+ax_c.set_xlim(-4.8, 4.8); ax_c.set_ylim(-4.8, 4.8); ax_c.set_xlabel("$x_1$"); ax_c.set_ylabel("$x_2$")
+ax_c.legend(loc="lower left", fontsize=7.5, facecolor="#1a1a2e", labelcolor="white", framealpha=0.90)
+
+# Row 2: Reverse Diffusion Process Across Time (t = 95 -> 55 -> 25 -> 1)
+rev_timesteps = [
+    (95, 5,  "(d) Reverse Step $t=95$ (High Noise)\nRadial inward pull from $\\mathcal{N}(\\mathbf{0},\\mathbf{I})$"),
+    (55, 45, "(e) Reverse Step $t=55$ (Bifurcation)\nScore field splits into 4 mode basins"),
+    (25, 75, "(f) Reverse Step $t=25$ (Mode Funneling)\nArrows steer samples into pockets"),
+    (1,  99, "(g) Reverse Step $t=1$ (Manifold Lock)\nSamples converge onto sharp data modes")
+]
+
+for panel_i, (t_val, hist_idx, title_str) in enumerate(rev_timesteps):
+    ax = fig.add_subplot(gs[1, panel_i*3 : (panel_i+1)*3])
+    ab_t = float(score_ddpm.alpha_bars[t_val].item())
+    p_t, _ = exact_marginal_density_and_score(g_pts, ab_t)
+    log_p_t = np.log(p_t.reshape(gx_s.shape) + 1e-12)
+    ax.contourf(gx_s, gy_s, np.clip(log_p_t, -9.5, None), levels=22, cmap="viridis", alpha=0.80)
+
+    s_grid, _ = score_ddpm.predict_score(g_pts, t_val)
+    ax.streamplot(g_lin, g_lin, s_grid[:, 0].reshape(gx_s.shape), s_grid[:, 1].reshape(gy_s.shape),
+                  color=(1, 1, 1, 0.22), linewidth=0.65, density=0.8, arrowsize=0.65)
+
+    s_quiv, _ = score_ddpm.predict_score(q_pts, t_val)
+    v_quiv = normalize_vectors_for_quiver(s_quiv)
+    ax.quiver(qx_s, qy_s, v_quiv[:, 0].reshape(qx_s.shape), v_quiv[:, 1].reshape(qy_s.shape),
+              color="#ffea00", alpha=0.90, scale=11.5, width=0.0052, zorder=5,
+              label="Score Field $\\mathbf{s}_\\theta(\\mathbf{x}, t)$" if panel_i == 0 else None)
+
+    if t_val == 1:
+        for mu_c, cov_c in zip(learned_means_2d, learned_covs_2d):
+            eigvals, eigvecs = np.linalg.eigh(cov_c)
+            angle = np.degrees(np.arctan2(eigvecs[1, 0], eigvecs[0, 0]))
+            w_el, h_el = 2 * 2.0 * np.sqrt(eigvals)
+            ax.add_patch(Ellipse(xy=mu_c, width=w_el, height=h_el, angle=angle,
+                                 edgecolor="white", facecolor="none", lw=1.4, linestyle="--", alpha=0.85, zorder=6))
+
+    cur_cloud = cloud_history[hist_idx, :180, :]
+    ax.scatter(cur_cloud[:, 0], cur_cloud[:, 1], s=16, c="#ff0055", edgecolors="white", linewidth=0.35, alpha=0.82, zorder=7,
+               label=f"Particle Cloud $\\mathbf{{x}}_{{{t_val}}}$")
+
+    if hist_idx > 0:
+        for tr_i in range(tracked_history.shape[1]):
+            path_xy = tracked_history[:hist_idx+1, tr_i, :]
+            ax.plot(path_xy[:, 0], path_xy[:, 1], color="white", lw=2.2, alpha=0.65, zorder=8)
+            ax.plot(path_xy[:, 0], path_xy[:, 1], color="#00f5d4", lw=1.3, alpha=0.95, zorder=9)
+
+    ax.scatter(tracked_history[hist_idx, :, 0], tracked_history[hist_idx, :, 1],
+               s=48, c="#00f5d4", edgecolors="black", linewidth=0.8, zorder=10, label="Tracked Reverse Paths")
+    ax.set_title(title_str, fontsize=10.0, fontweight="bold")
+    ax.set_xlim(-4.8, 4.8); ax.set_ylim(-4.8, 4.8); ax_c.set_xlabel("$x_1$")
+    ax.set_xlabel("$x_1$")
+    if panel_i == 0:
+        ax.set_ylabel("$x_2$")
+    ax.legend(loc="lower left", fontsize=7.2, facecolor="#1a1a2e", labelcolor="white", framealpha=0.88)
+
+plt.suptitle("Visualizing the Diffusion Score Field: Training ($\\mathbf{s}_\\theta(\\mathbf{x}_t, t) \\approx \\nabla_{\\mathbf{x}_t}\\log q_t(\\mathbf{x}_t)$) & Reverse Denoising Dynamics",
+             fontsize=13.5, fontweight="bold", y=0.98)
+plt.savefig(os.path.join(FIG_DIR, "task2_score_field_training_and_reverse.png"), bbox_inches="tight", dpi=180)
+plt.show()
+print(f"Score Vector Field Cosine Alignment at t={t_train_demo}: {cos_sim:.2%}")
+""")
+
+# ==============================================================================
 # CELL 4: LOAD MNIST & TRAIN DISCRIMINATIVE CLASSIFIER (EVALUATOR)
 # ==============================================================================
 add_markdown(r"""
-### 1.2 Loading MNIST ($28 \times 28$) & Training our Discriminative CNN Classifier $D_{\text{cls}}(x)$
+### 1.3 Loading MNIST ($28 \times 28$) & Training our Discriminative CNN Classifier $D_{\text{cls}}(x)$
 Next, we load the real **MNIST** dataset ($28 \times 28$ grayscale digits `0`–`9`) and train a **Discriminative Convolutional Neural Network** $D_{\text{cls}}(x) = p_\phi(y \mid x)$.
 * **Role 1 (Task 1a):** Demonstrates how a discriminative model maps a $28 \times 28$ image $x \in \mathbb{R}^{1 \times 28 \times 28}$ to a 10-class probability vector $p_\phi(y \mid x) \in \Delta^9$, achieving $\sim 99\%$ test accuracy.
 * **Role 2 (Task 1b Objective Evaluator):** Just as the **Inception-v3** network is used to compute **Inception Score (IS)** and **Fréchet Inception Distance (FID)** on ImageNet, we will use our trained $D_{\text{cls}}(x)$ to extract 128-D feature embeddings and class predictions on $1,000$ generated images from each generative model!
