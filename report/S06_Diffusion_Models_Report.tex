@@ -1,13 +1,12 @@
-\documentclass[11pt,a4paper]{article}
+\UseRawInputEncoding
+\documentclass[a4paper,12pt]{article}
 
 % ==============================================================================
-% PACKAGES & FORMATTING
+% PACKAGES & HCMUS TEMPLATE FORMATTING
 % ==============================================================================
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
-\usepackage{geometry}
-\geometry{a4paper, top=1.8cm, bottom=1.9cm, left=2.0cm, right=2.0cm}
-
+\usepackage{lmodern}
 \usepackage{amsmath, amssymb, amsfonts, amsthm}
 \usepackage{bm}
 \usepackage{booktabs}
@@ -20,11 +19,11 @@
 \usepackage{subcaption}
 \usepackage{xcolor}
 \usepackage{enumitem}
+\usepackage{hcmus-report-template}
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta, positioning, shapes.geometric, calc, fit, backgrounds}
-\usepackage[colorlinks=true, linkcolor=blue!70!black, citecolor=blue!70!black, urlcolor=blue!70!black]{hyperref}
 
-\setlength{\parskip}{0.32em}
+\setlength{\parskip}{0.35em}
 \setlength{\parindent}{1.2em}
 \renewcommand{\arraystretch}{1.15}
 
@@ -38,31 +37,37 @@
 }
 
 % ==============================================================================
-% TITLE & METADATA (CS420 SEMINAR S06)
+% TITLE & METADATA (HCMUS SEMINAR REPORT TEMPLATE)
 % ==============================================================================
-\title{\textbf{[S06] Diffusion Models: From Adding Noise to Generating Images}\\[0.4em]
-\large Research Seminar Report — CS420: Introduction to Artificial Intelligence}
+\newcommand{\coursename}{CS420 — Introduction to Artificial Intelligence}
+\newcommand{\reportname}{[S06] Diffusion Models: From Adding Noise to Generating Images}
+\newcommand{\reporttitle}{SEMINAR REPORT}
 
-\author{
-    \textbf{Seminar Research Team — Topic [S06] (Generative AI)}\\
-    Member 1 \quad $\cdot$ \quad Member 2 \quad $\cdot$ \quad Member 3\\
-    \small Faculty of Information Technology
+\newcommand{\studentname}{Vong Chi Van (24125049)\\ Le Dat Phuc An (24125052)}
+
+% Header
+\lhead{\reporttitle}
+\rhead{
+University of Science - VNUHCM\\
+\coursename
 }
-\date{November 2026}
 
 \begin{document}
-\maketitle
+
+\input{title.tex}
+\tableofcontents
+\newpage
 
 % ==============================================================================
 % ABSTRACT
 % ==============================================================================
 \begin{abstract}
 \noindent
-Diffusion models have emerged as the foundational paradigm of modern Generative AI, surpassing Generative Adversarial Networks (GANs), Variational Autoencoders (VAEs), and Autoregressive Models in both visual sample fidelity and mode coverage. This report addresses the central guiding question: \textit{``How can learning to remove noise enable a model to generate brand-new images, and why does latent diffusion drastically reduce computational demands?''} Bridging probabilistic latent variable theory with two landmark papers—\textbf{Denoising Diffusion Probabilistic Models (DDPM)} by Ho et al.\ (2020) \cite{ho2020denoising} and \textbf{Latent Diffusion Models (LDM)} by Rombach et al.\ (2022) \cite{rombach2022high}—we present a comprehensive analysis of the forward Gaussian noising process $q(\mathbf{x}_t \mid \mathbf{x}_{t-1})$, variance-preserving $\beta_t$ scheduling across data resolutions, the closed-form jump $q(\mathbf{x}_t \mid \mathbf{x}_0)$, the reverse denoising chain $p_\theta(\mathbf{x}_{t-1} \mid \mathbf{x}_t)$, and the simplified noise-prediction objective $L_{\text{simple}}$. Crucially, we prove both intuitively and analytically (via bimodal posterior analysis and the Law of Total Variance) why re-injecting stochastic noise $+\sigma_t\mathbf{z}$ during reverse sampling is strictly necessary to break the symmetry of $L_2$ regression and prevent trajectories from collapsing onto a blurry dataset mean. We provide complete symbol specifications, a step-by-step 1D numerical worked example, an analysis of perceptual VAE compression combined with Cross-Attention conditioning in latent space, and controlled empirical experiments on MNIST ($28 \times 28$) and 2D manifolds. Finally, we critically evaluate practical limitations regarding sequential sampling latency, prompt-based compositional control, training data copyright/memorization, and societal bias.
+Diffusion models have emerged as the foundational paradigm of modern Generative AI, surpassing Generative Adversarial Networks (GANs), Variational Autoencoders (VAEs), and Autoregressive Models in both visual sample fidelity and mode coverage. This report addresses the central guiding question: \textit{``How can learning to remove noise enable a model to generate brand-new images, and why does latent diffusion drastically reduce computational demands?''} Bridging probabilistic generative modeling with two landmark papers—\textbf{Denoising Diffusion Probabilistic Models (DDPM)} by Ho et al.\ (2020) \cite{ho2020denoising} and \textbf{Latent Diffusion Models (LDM)} by Rombach et al.\ (2022) \cite{rombach2022high}—we first contrast discriminative classifiers $P_\phi(Y\mid\mathbf{x})$ against generative models $p_\theta(\mathbf{x}, Y) = p_\theta(\mathbf{x}\mid Y)P(Y)$, demonstrating how learned class-conditional Gaussians $\mathcal{N}(\hat{\bm{\mu}}_c, \hat{\bm{\Sigma}}_c)$ function both as an optimal Bayes discriminator and as a data generator. We then present a comprehensive analysis of the forward Gaussian noising process $q(\mathbf{x}_t \mid \mathbf{x}_{t-1})$, variance-preserving $\beta_t$ scheduling across data resolutions, the closed-form jump $q(\mathbf{x}_t \mid \mathbf{x}_0)$, the reverse denoising chain $p_\theta(\mathbf{x}_{t-1} \mid \mathbf{x}_t)$, and the simplified noise-prediction objective $L_{\text{simple}}$. Crucially, we prove both intuitively and analytically (via bimodal posterior analysis and the Law of Total Variance) why re-injecting stochastic noise $+\sigma_t\mathbf{z}$ during reverse sampling is strictly necessary to break the symmetry of $L_2$ regression and prevent trajectories from collapsing onto a blurry dataset mean. We provide complete symbol specifications, a step-by-step 1D numerical worked example, an analysis of perceptual VAE compression combined with Cross-Attention conditioning in latent space, and controlled empirical experiments on 2D manifolds and MNIST ($28 \times 28$). Finally, we critically evaluate practical limitations regarding sequential sampling latency, prompt-based compositional control, training data copyright/memorization, and societal bias.
 \end{abstract}
 
 \vspace{0.5em}
-\noindent\textbf{Keywords:} Generative AI, Denoising Diffusion Probabilistic Models (DDPM), Latent Diffusion Models (LDM), Variational Autoencoder (VAE), Cross-Attention, Evidence Lower Bound (ELBO).
+\noindent\textbf{Keywords:} Generative AI, Denoising Diffusion Probabilistic Models (DDPM), Latent Diffusion Models (LDM), Variational Autoencoder (VAE), Cross-Attention, Bayes' Theorem.
 
 \hrulefill
 
@@ -91,16 +96,32 @@ The core insight of \textbf{Denoising Diffusion Probabilistic Models (DDPM)} \ci
 
 \subsection{Distinguishing Discriminative vs.\ Generative Models — Task 1}
 
-\begin{itemize}[leftmargin=1.6em, itemsep=0.25em]
-    \item \textbf{Discriminative Models:} Learn the conditional probability $p_\phi(y \mid \mathbf{x})$ or a direct decision boundary mapping inputs $\mathbf{x}$ to labels $y$ (e.g., Logistic Regression, ResNet classifiers, or the GAN Discriminator $D_\phi(\mathbf{x})$). Discriminative models only care about features that separate classes; they do not model the structure of $p(\mathbf{x})$ itself. As demonstrated in our Team Experiment 1A (Section \ref{sec:exp_task1}), a discriminative classifier partitions all of $\mathbb{R}^D$ with hyperplanes, assigning $>99\%$ confidence to empty out-of-distribution regions far from the data manifold, and \textbf{cannot sample new data}.
-    \item \textbf{Generative Models:} Learn the joint or marginal data distribution $p_\theta(\mathbf{x}) \approx p_{\text{data}}(\mathbf{x})$ (or conditional $p_\theta(\mathbf{x} \mid y)$ for class-/text-guided synthesis). By modeling where probability mass resides on the data manifold, generative models can synthesize brand-new instances $\mathbf{x}_{\text{new}} \sim p_\theta(\mathbf{x})$.
-\end{itemize}
+Supervised classification and probabilistic modeling are fundamentally divided into \textbf{Discriminative} and \textbf{Generative} paradigms:
 
-\subsubsection*{Why Can We Not Sample New Images from a Deterministic Autoencoder (AE)?}
-A foundational question connecting latent variable models to diffusion is: \textit{Since a deterministic Autoencoder ($\mathbf{z} = f_\phi(\mathbf{x}), \, \hat{\mathbf{x}} = g_\theta(\mathbf{z})$) also compresses images into a bottleneck $\mathbf{z}$ and has a decoder $g_\theta(\mathbf{z})$, why can we not simply draw $\mathbf{z} \sim \mathcal{N}(\mathbf{0}, \mathbf{I})$ to generate new images?}
-\begin{enumerate}[leftmargin=1.8em, itemsep=0.2em]
-    \item \textbf{No Known Prior Distribution $p(\mathbf{z})$ and Empty Latent Holes:} A deterministic AE minimizes only reconstruction error $\|\mathbf{x} - g_\theta(f_\phi(\mathbf{x}))\|^2$. To prevent the decoder from confusing training samples, the encoder $f_\phi$ scatters encodings $\mathbf{z}_i$ across arbitrary, unbounded coordinates (e.g., $[-20, +25]$) into isolated islands separated by \textbf{massive empty gaps (``dead zones'')} where $g_\theta(\mathbf{z})$ was never trained. Sampling $\mathbf{z} \sim \mathcal{N}(\mathbf{0}, \mathbf{I})$ lands either in an unvisited hole—decoding into fractured garbage—or hits only a single class parked near the origin.
-    \item \textbf{How VAEs and Diffusion Solve This:} In a VAE \cite{kingma2014auto}, the KL divergence penalty $D_{\text{KL}}\big(q_\phi(\mathbf{z}\mid\mathbf{x}) \,\|\, \mathcal{N}(\mathbf{0}, \mathbf{I})\big)$ acts as a gravitational restoring force pulling all posterior means $\bm{\mu}_\phi(\mathbf{x})$ inside the $[-3, +3]$ container of $\mathcal{N}(\mathbf{0}, \mathbf{I})$, while the reparameterization noise $\bm{\sigma}_\phi(\mathbf{x}) \odot \bm{\epsilon}$ forces neighboring clouds to overlap and eliminate empty gaps. Similarly, in a DDPM, the forward process is mathematically guaranteed to map \emph{every} clean image $\mathbf{x}_0$ onto the exact isotropic Gaussian prior $\mathbf{x}_T \sim \mathcal{N}(\mathbf{0}, \mathbf{I})$.
+\begin{enumerate}[leftmargin=1.8em, itemsep=0.3em]
+    \item \textbf{Pure Discriminative Models ($P_\phi(Y \mid \mathbf{x})$ — e.g., Logistic Regression, SVMs, MLP/ResNet Classifiers):}
+    \begin{itemize}[leftmargin=1.4em, itemsep=0.15em]
+        \item \textbf{What they learn:} Directly model the conditional probability $P_\phi(Y \mid \mathbf{x})$ or learn a separating hyperplane/decision boundary between classes to maximize classification accuracy, without modeling how the features $\mathbf{x}$ are distributed within each class.
+        \item \textbf{Key Limitations:} Because a discriminative model only knows which side of a decision boundary a point $\mathbf{x}$ falls on, it \textbf{cannot generate new samples}. Furthermore, at out-of-distribution (OOD) coordinates far from the data manifold in empty space, a discriminative classifier remains \textbf{blindly overconfident ($\approx 100\%$)}, as the query still lies deep on one side of the separating hyperplane.
+    \end{itemize}
+
+    \item \textbf{Generative Models ($p_\theta(\mathbf{x}, Y) = p_\theta(\mathbf{x} \mid Y) P(Y)$ or $p_\theta(\mathbf{x})$ — e.g., Gaussian Bayes / GMM, VAEs, Diffusion Models):}
+    \begin{itemize}[leftmargin=1.4em, itemsep=0.15em]
+        \item \textbf{What they learn:} Explicitly model the underlying data distribution of each class. For instance, in a Gaussian generative model, the model estimates the empirical mean vector $\hat{\bm{\mu}}_c$ and covariance matrix $\hat{\bm{\Sigma}}_c$ for each class $c \in \{0, \dots, C-1\}$:
+        \begin{equation}
+            p_\theta(\mathbf{x} \mid Y = c) = \mathcal{N}\!\left(\mathbf{x};\, \hat{\bm{\mu}}_c, \hat{\bm{\Sigma}}_c\right) = \frac{1}{(2\pi)^{D/2}|\hat{\bm{\Sigma}}_c|^{1/2}} \exp\!\left(-\frac{1}{2}(\mathbf{x} - \hat{\bm{\mu}}_c)^\top \hat{\bm{\Sigma}}_c^{-1} (\mathbf{x} - \hat{\bm{\mu}}_c)\right)
+        \end{equation}
+        \item \textbf{Using a Learned Generative Model as a Discriminator via Bayes' Theorem:} Once the class distributions $p_\theta(\mathbf{x} \mid Y = c)$ and class priors $P(Y = c)$ are learned, the generative model directly acts as a \textbf{classifier (discriminator)} for any test point $\mathbf{x}_q$. It evaluates how likely $\mathbf{x}_q$ is under each class's learned Gaussian distribution and applies \textbf{Bayes' Rule}:
+        \begin{equation}
+        \begin{aligned}
+            P_\theta(Y = c \mid \mathbf{x}_q) &= \frac{p_\theta(\mathbf{x}_q \mid Y = c)\, P(Y = c)}{\sum_{k=0}^{C-1} p_\theta(\mathbf{x}_q \mid Y = k)\, P(Y = k)}, \\
+            \hat{y}_{\text{Bayes}}(\mathbf{x}_q) &= \arg\max_{c}\; p_\theta(\mathbf{x}_q \mid Y = c)\, P(Y = c)
+        \end{aligned}
+        \label{eq:bayes_classifier}
+        \end{equation}
+        The induced \textbf{Bayes decision boundary} between classes $c$ and $k$ is the locus of points where their weighted Gaussian likelihoods are equal: $p_\theta(\mathbf{x}\mid Y=c)P(Y=c) = p_\theta(\mathbf{x}\mid Y=k)P(Y=k)$.
+        \item \textbf{Sampling \& Out-of-Distribution Detection:} Beyond classification, the marginal data density $p_\theta(\mathbf{x}) = \sum_{c} P(Y=c)\,p_\theta(\mathbf{x}\mid Y=c)$ enables the model to \textbf{detect out-of-distribution anomalies} (where $p_\theta(\mathbf{x}_{\text{OOD}}) \approx 0$) and \textbf{synthesize brand-new data samples} $\mathbf{x}_{\text{new}} \sim p_\theta(\mathbf{x})$.
+    \end{itemize}
 \end{enumerate}
 
 \begin{table}[H]
@@ -348,11 +369,11 @@ In pixel-space DDPMs, $\mathbf{x}_t$ retains the full resolution of $\mathbf{x}_
 \subsubsection{Multimodal Conditioning via Cross-Attention}
 To condition generation on text prompts or semantic maps $y$, a domain encoder $\tau_\theta(y) \in \mathbb{R}^{M \times d_\tau}$ (e.g., a pretrained CLIP text transformer) projects $y$ into $M$ token embeddings, which are injected into intermediate U-Net layers via \textbf{Multi-Head Cross-Attention}:
 \begin{equation}
-    \text{Attention}(\mathbf{Q}, \mathbf{K}, \mathbf{V}) = \text{softmax}\!\left(\frac{\mathbf{Q}\mathbf{K}^T}{\sqrt{d}}\right)\mathbf{V}, \qquad \text{where }
+    \text{Attention}(\mathbf{Q}, \mathbf{K}, \mathbf{V}) = \text{softmax}\!\left(\frac{\mathbf{Q}\mathbf{K}^T}{\sqrt{d}}\right)\mathbf{V}, \quad
     \begin{cases}
-        \mathbf{Q} = \varphi_i(\mathbf{z}_t)\,\mathbf{W}_Q^{(i)} & \text{(Queries from spatial image latent }\mathbf{z}_t\text{)}\\
-        \mathbf{K} = \tau_\theta(y)\,\mathbf{W}_K^{(i)} & \text{(Keys from prompt embedding }y\text{)}\\
-        \mathbf{V} = \tau_\theta(y)\,\mathbf{W}_V^{(i)} & \text{(Values from prompt embedding }y\text{)}
+        \mathbf{Q} = \varphi_i(\mathbf{z}_t)\,\mathbf{W}_Q^{(i)} & \text{(from spatial latent }\mathbf{z}_t\text{)}\\
+        \mathbf{K} = \tau_\theta(y)\,\mathbf{W}_K^{(i)} & \text{(from prompt }y\text{)}\\
+        \mathbf{V} = \tau_\theta(y)\,\mathbf{W}_V^{(i)} & \text{(from prompt }y\text{)}
     \end{cases}
 \end{equation}
 The conditioned Latent Diffusion training objective is:
@@ -413,31 +434,22 @@ In strict compliance with the seminar guidelines (distinguishing experiments dev
 
 \subsection{Part A: Empirical Experiments Developed by Our Team (MNIST $28 \times 28$ \& 2D Manifolds)}
 \label{sec:exp_task1}
-We implemented a self-contained experimental suite in \texttt{experiments/task1\_generative\_paradigms\_comparison.ipynb}, executed on an NVIDIA GeForce RTX 5060 Ti GPU (PyTorch 2.10, CUDA 12.8):
+We implemented a self-contained experimental suite in \nolinkurl{experiments/task1_generative_paradigms_comparison.ipynb}, executed on an NVIDIA GeForce RTX 5060 Ti GPU (PyTorch 2.10, CUDA 12.8):
 
 \begin{enumerate}[leftmargin=1.8em, itemsep=0.25em]
-    \item \textbf{Experiment 1A — Discriminative vs.\ Generative Models \& 2D Latent Space Geometry (Figure \ref{fig:exp_disc_gen_and_ae}):}
-    \begin{itemize}[leftmargin=1.4em, itemsep=0.1em]
-        \item On a 4-cluster 2D benchmark, a Discriminative MLP classifier $p_\phi(y\mid\mathbf{x})$ partitions the plane with linear hyperplanes and outputs $>99\%$ confidence at an out-of-manifold query $(4.5, 4.5)$ in empty space. Conversely, our 2D Diffusion model learns the true data density $p_\theta(\mathbf{x})$ and generates novel samples strictly inside the 4 modes.
-        \item Comparing 2D-bottleneck encodings ($\mathbf{z} \in \mathbb{R}^2$) across $3{,}000$ MNIST test digits, the \textbf{Deterministic Autoencoder} scatters digit classes across $[-20, +25]$ with wide empty canyons; sampling $\mathbf{z} \sim \mathcal{N}(\mathbf{0}, \mathbf{I})$ fails because the $2\sigma$ prior circle lands in empty dead zones or hits a single class. In contrast, the \textbf{2D VAE} packs all 10 classes smoothly inside the $\mathcal{N}(\mathbf{0}, \mathbf{I})$ circle ($[-3, +3]$) with zero holes.
+    \item \textbf{Experiment 1A — Discriminative Classifier vs.\ Generative Model Used as a Discriminator (Bayes' Rule) \& Generator (Figure \ref{fig:exp_disc_gen}):}
+    \begin{itemize}[leftmargin=1.4em, itemsep=0.15em]
+        \item \textbf{Pure Discriminative Classifier $P_\phi(Y\mid\mathbf{x})$ (Figure \ref{fig:exp_disc_gen}a):} On our 4-class 2D tilted-Gaussian benchmark, the MLP classifier achieves $\mathbf{100.0\%}$ test accuracy by partitioning the plane into four quadrants. However, because it only models decision boundaries, it outputs $\mathbf{100.0\%}$ confidence at the out-of-distribution point $\mathbf{x}_{\text{OOD}} = (4.5, 4.5)$ in empty space and cannot generate new samples.
+        \item \textbf{Generative Model Used as a Discriminator via Bayes' Rule (Figure \ref{fig:exp_disc_gen}b):} The generative model first fits a 2D Gaussian $\mathcal{N}(\hat{\bm{\mu}}_c, \hat{\bm{\Sigma}}_c)$ to each class $c \in \{0, 1, 2, 3\}$ (visualized by the $1\sigma, 2\sigma, 3\sigma$ covariance ellipses). Using \textbf{Bayes' Theorem}, $P_\theta(Y=c\mid\mathbf{x}) \propto p_\theta(\mathbf{x}\mid Y=c)P(Y=c)$, it induces exact \textbf{Bayes Decision Boundaries} where adjacent Gaussian likelihoods balance, achieving $\mathbf{100.0\%}$ test classification accuracy. For the query point $\mathbf{x}_q = (-1.15, 1.25)$ (yellow star), it compares class likelihoods $p_\theta(\mathbf{x}_q\mid Y=1) = 4.41 \times 10^{-2}$ vs.\ $p_\theta(\mathbf{x}_q\mid Y=0) = 2.42 \times 10^{-16}$, yielding posterior $P_\theta(Y=1\mid\mathbf{x}_q) = 100.0\%$.
+        \item \textbf{Generative Sampling \& OOD Detection (Figure \ref{fig:exp_disc_gen}c):} Unlike the discriminative model, the generative model evaluates the marginal density at $\mathbf{x}_{\text{OOD}} = (4.5, 4.5)$ as $p_\theta(\mathbf{x}_{\text{OOD}}) = \mathbf{2.52 \times 10^{-26} \approx 0}$ (immediately flagging it as an outlier) and synthesizes brand-new samples $\mathbf{x}_{\text{new}} \sim p_\theta(\mathbf{x})$ from $\mathcal{N}(\mathbf{0}, \mathbf{I})$ via 2D DDPM.
     \end{itemize}
 \end{enumerate}
 
 \begin{figure}[H]
 \centering
-\begin{subfigure}[b]{0.49\textwidth}
-    \centering
-    \IncludeExpFigure{../experiments/figures/task1_discriminative_vs_generative_2d.png}{\textwidth}{2D Discriminative Decision Boundaries vs. Generative Density}
-    \caption{Discriminative $p_\phi(y\mid\mathbf{x})$ vs.\ Generative $p_\theta(\mathbf{x})$ in 2D.}
-\end{subfigure}
-\hfill
-\begin{subfigure}[b]{0.49\textwidth}
-    \centering
-    \IncludeExpFigure{../experiments/figures/task1_ae_vs_vae_latent_space_2d.png}{\textwidth}{2D Latent Space of Deterministic AE vs. VAE on MNIST}
-    \caption{2D Latent Space $\mathbb{R}^2$: Autoencoder (gaps) vs.\ VAE (dense).}
-\end{subfigure}
-\caption{Team Experiment 1A Results: (a) Decision boundaries vs.\ generative manifold density; (b) Visual proof of why prior sampling $\mathcal{N}(\mathbf{0}, \mathbf{I})$ fails on a deterministic Autoencoder but succeeds on a VAE.}
-\label{fig:exp_disc_gen_and_ae}
+\IncludeExpFigure{../experiments/figures/task1_discriminative_vs_generative_2d.png}{\textwidth}{2D Discriminative Classifier vs. Generative Model Used as Discriminator and Generator}
+\caption{Team Experiment 1A Results: (a) Pure Discriminative model $P_\phi(Y\mid\mathbf{x})$ learning only decision boundaries; (b) Generative model fitting 2D Gaussians $\mathcal{N}(\hat{\bm{\mu}}_c, \hat{\bm{\Sigma}}_c)$ and acting as a Discriminator via Bayes' Rule $P_\theta(Y\mid\mathbf{x}) \propto p_\theta(\mathbf{x}\mid Y)P(Y)$; (c) Generative sampling $\mathbf{x}_{\text{new}} \sim p_\theta(\mathbf{x})$ and OOD detection ($p_\theta(\mathbf{x}_{\text{OOD}}) \approx 0$).}
+\label{fig:exp_disc_gen}
 \end{figure}
 
 \begin{enumerate}[leftmargin=1.8em, itemsep=0.25em, resume]
