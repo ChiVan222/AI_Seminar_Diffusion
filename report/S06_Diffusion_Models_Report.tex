@@ -118,30 +118,19 @@ Diffusion models have emerged as a dominant paradigm in generative artificial in
 % ==============================================================================
 \section{Introduction}
 
-Synthesizing high-dimensional continuous signals such as natural images is a central challenge in artificial intelligence. A natural image tensor is represented as:
-\begin{equation}
-    \mathbf{x} \in \mathbb{R}^{H \times W \times C}
-\end{equation}
-where $H$, $W$, and $C$ denote the height, width, and color channel dimensions, respectively. Unlike supervised discriminative learning, which only seeks decision boundaries separating predefined class labels, a generative model must capture the true underlying probability distribution $p_{\text{data}}(\mathbf{x})$ of a complex, low-dimensional data manifold embedded in high-dimensional ambient space. Once learned, the model enables the synthesis of novel, realistic samples:
-\begin{equation}
-    \mathbf{x}_{\text{new}} \sim p_\theta(\mathbf{x})
-\end{equation}
+Synthesizing high-dimensional continuous signals such as natural images is a central challenge in artificial intelligence. A natural image tensor is represented as $\mathbf{x} \in \mathbb{R}^{H \times W \times C}$, where $H$, $W$, and $C$ denote the height, width, and color channel dimensions, respectively. Unlike supervised discriminative learning, which only seeks decision boundaries separating predefined class labels, a generative model must capture the true underlying probability distribution $p_{\text{data}}(\mathbf{x})$ of a complex, low-dimensional data manifold embedded in high-dimensional ambient space. Once learned, the model enables the synthesis of novel, realistic samples $\mathbf{x}_{\text{new}} \sim p_\theta(\mathbf{x})$.
 
 Deep generative architectures have historically struggled to simultaneously achieve high sample sharpness, comprehensive mode diversity, and fast sampling speed. While early generative paradigms made substantial progress, each faced inherent trade-offs between sample quality, training stability, and sampling efficiency.
 
 \paragraph{Guiding Question and Scope.}
 \textit{How can learning to remove noise enable a model to generate new images, and why does moving diffusion into a learned latent space resolve its computational bottleneck?}
 
-The core insight of Denoising Diffusion Probabilistic Models (DDPM) \cite{sohl2015deep, ho2020denoising} is to decompose the difficult one-step mapping from standard Gaussian noise $\mathcal{N}(\mathbf{0}, \mathbf{I})$ to the data distribution $p_{\text{data}}(\mathbf{x}_0)$ into $T$ small, tractable steps ($T \approx 1000$). If a fixed forward process gradually corrupts a clean image $\mathbf{x}_0$ with small increments of Gaussian noise until the signal is erased into pure noise:
-\begin{equation}
-    \mathbf{x}_T \sim \mathcal{N}(\mathbf{0}, \mathbf{I})
-\end{equation}
-then learning the reverse process allows a neural network to start from random Gaussian noise and iteratively sculpt a realistic image through repeated denoising steps:
+The core insight of Denoising Diffusion Probabilistic Models (DDPM) \cite{sohl2015deep, ho2020denoising} is to decompose the difficult one-step mapping from standard Gaussian noise $\mathcal{N}(\mathbf{0}, \mathbf{I})$ to the data distribution $p_{\text{data}}(\mathbf{x}_0)$ into $T$ small, tractable steps ($T \approx 1000$). If a fixed forward process gradually corrupts a clean image $\mathbf{x}_0$ with small increments of Gaussian noise until the signal is erased into pure noise $\mathbf{x}_T \sim \mathcal{N}(\mathbf{0}, \mathbf{I})$, then learning the reverse process allows a neural network to start from random Gaussian noise and iteratively sculpt a realistic image through repeated denoising steps:
 \begin{equation}
     \mathbf{x}_T \to \mathbf{x}_{T-1} \to \dots \to \mathbf{x}_0
 \end{equation}
 
-Furthermore, to overcome the immense computational cost of evaluating a full-resolution neural network in pixel space, Latent Diffusion Models (LDM) \cite{rombach2022high} first compress images into the compact latent space of a pretrained Variational Autoencoder before executing diffusion. This representation reduces the state dimensionality by $48\times$ and cuts self-attention complexity by $4{,}096\times$, rendering high-resolution synthesis tractable on standard consumer hardware.
+Furthermore, to overcome the immense computational cost of evaluating a full-resolution neural network in pixel space, Latent Diffusion Models (LDM) \cite{rombach2022high} first compress images into the compact latent space of a pretrained Variational Autoencoder before executing diffusion. This representation reduces the state dimensionality, rendering high-resolution synthesis tractable on standard consumer hardware.
 
 \paragraph{Tasks and Report Organization.}
 To systematically address the guiding question in accordance with the seminar requirements, this report is structured around six concrete tasks:
