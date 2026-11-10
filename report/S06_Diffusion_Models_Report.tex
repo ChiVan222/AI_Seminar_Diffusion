@@ -157,7 +157,7 @@ Supervised machine learning and probabilistic modeling are fundamentally divided
     \begin{equation}
         P(Y \mid \mathbf{x})
     \end{equation}
-    where $Y$ is the class label and $\mathbf{x}$ represents the input features. It learns decision boundaries separating classes without modeling the distribution of the input features $\mathbf{x}$. Consequently, a discriminative model cannot generate novel data samples.
+    where $Y$ is the class label and $\mathbf{x}$ represents the input features. It learns decision boundaries separating classes without modeling the distribution of the input features $\mathbf{x}$. Consequently, a discriminative model cannot generate novel data samples and often produces spuriously overconfident predictions on empty out-of-distribution regions.
 
     \item \textit{Generative Models:} Generative models are primarily used to generate novel data, though they can also be used for classification. A generative model learns the underlying data distribution:
     \begin{equation}
@@ -171,15 +171,15 @@ Supervised machine learning and probabilistic modeling are fundamentally divided
     \begin{equation}
         \mathbf{x}_{\text{new}} \sim p(\mathbf{x})
     \end{equation}
-    that resemble the training data distribution.
+    that resemble the training data distribution, while assigning negligible density to regions devoid of data.
 \end{enumerate}
 
-Figure \ref{fig:exp_disc_gen} shows the visual comparison between the two paradigms on a synthetic four-class two-dimensional dataset.
+Figure \ref{fig:exp_disc_gen} illustrates this fundamental distinction on a synthetic four-class two-dimensional manifold. In Figure \ref{fig:exp_disc_gen}a, the discriminative classifier learns quadrant decision boundaries to predict $P(Y \mid \mathbf{x})$; however, when queried at an empty out-of-distribution point $\mathbf{x}_{\text{OOD}} = (4.5, 4.5)$, it extrapolates with unwarranted $100.0\%$ overconfidence and lacks any mechanism to synthesize new observations. In contrast, Figure \ref{fig:exp_disc_gen}b demonstrates the generative paradigm: the model explicitly learns the data density $p_\theta(\mathbf{x})$, reliably identifies out-of-distribution queries by assigning near-zero density ($p(\mathbf{x}_{\text{OOD}}) \approx 0$), and generates novel realistic samples $\mathbf{x}_{\text{new}} \sim p_\theta(\mathbf{x})$ across all four data modes.
 
 \begin{figure}[htbp]
 \centering
-\IncludeExpFigure{../experiments/figures/task1_discriminative_vs_generative_2d.png}{0.92\textwidth}{2D Discriminative Classifier vs. Generative Model Comparison}
-\caption{Visual comparison of modeling paradigms on a four-class two-dimensional manifold (Task 1): (a) A discriminative classifier learns quadrant decision boundaries to predict $P(Y\mid\mathbf{x})$ for classification; (b) A generative model learns class-conditional distributions $p(\mathbf{x}\mid Y)$ capturing the shape of the data; (c) The learned generative density enables generating new samples $\mathbf{x}_{\text{new}} \sim p(\mathbf{x})$ and detecting out-of-distribution queries.}
+\IncludeExpFigure{../experiments/figures/task1_discriminative_vs_generative_2d.png}{0.85\textwidth}{2D Discriminative Classifier vs. Generative Model Comparison}
+\caption{Visual comparison of modeling paradigms on a four-class two-dimensional manifold (Task 1): (a) A discriminative classifier learns quadrant decision boundaries to predict $P(Y\mid\mathbf{x})$ for classification, but exhibits unwarranted $100.0\%$ overconfidence at an empty out-of-distribution coordinate $\mathbf{x}_{\text{OOD}} = (4.5, 4.5)$ and lacks generative ability; (b) A generative model explicitly learns the data density $p_\theta(\mathbf{x})$, detects out-of-distribution queries by assigning negligible density ($p(\mathbf{x}_{\text{OOD}}) \approx 0$), and synthesizes novel realistic samples $\mathbf{x}_{\text{new}} \sim p_\theta(\mathbf{x})$ along all four data modes.}
 \label{fig:exp_disc_gen}
 \end{figure}
 
