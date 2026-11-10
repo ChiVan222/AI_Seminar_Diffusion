@@ -1,15 +1,15 @@
 \UseRawInputEncoding
-\documentclass[a4paper,12pt]{article}
+\documentclass[10pt,a4paper]{article}
 
 % ==============================================================================
-% PACKAGES & HCMUS TEMPLATE FORMATTING
+% PACKAGES: NEURIPS / DDPM RESEARCH PAPER STYLE (Ho et al., NeurIPS 2020)
 % ==============================================================================
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
-\usepackage{lmodern}
-\usepackage{amsmath, amssymb, amsfonts, amsthm}
-\usepackage{bm}
-\usepackage{booktabs}
+\usepackage{times}              % Times Roman text font (NeurIPS / DDPM standard)
+\usepackage{amsmath, amssymb, amsfonts, amsthm, bm}
+\usepackage[a4paper, left=1.0in, right=1.0in, top=1.0in, bottom=1.0in]{geometry}
+\usepackage{booktabs}           % Formal tables (toprule, midrule, bottomrule)
 \usepackage{array}
 \usepackage{multirow}
 \usepackage{tabularx}
@@ -19,13 +19,46 @@
 \usepackage{subcaption}
 \usepackage{xcolor}
 \usepackage{enumitem}
-\usepackage{hcmus-report-template}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta, positioning, shapes.geometric, calc, fit, backgrounds}
+\usepackage{microtype}          % Publication-grade typography and kerning
+\usepackage[colorlinks=true, linkcolor=blue!85!black, citecolor=green!45!black, urlcolor=blue!85!black]{hyperref}
 
-\setlength{\parskip}{0.35em}
-\setlength{\parindent}{1.2em}
-\renewcommand{\arraystretch}{1.15}
+% NeurIPS-style section headings without external dependency
+\makeatletter
+\renewcommand\section{\@startsection {section}{1}{\z@}%
+                                   {-2.0ex \@plus -0.5ex \@minus -.2ex}%
+                                   {0.8ex \@plus.2ex}%
+                                   {\normalfont\large\bfseries}}
+\renewcommand\subsection{\@startsection{subsection}{2}{\z@}%
+                                     {-1.5ex\@plus -0.4ex \@minus -.2ex}%
+                                     {0.5ex \@plus .2ex}%
+                                     {\normalfont\normalsize\bfseries}}
+\renewcommand\subsubsection{\@startsection{subsubsection}{3}{\z@}%
+                                     {-1.2ex\@plus -0.3ex \@minus -.2ex}%
+                                     {0.4ex \@plus .2ex}%
+                                     {\normalfont\normalsize\bfseries}}
+\renewcommand\paragraph{\@startsection{paragraph}{4}{\z@}%
+                                    {1.0ex \@plus 0.3ex \@minus 0.2ex}%
+                                    {-1em}%
+                                    {\normalfont\normalsize\bfseries}}
+\makeatother
+
+% Spacing and formatting (DDPM / NeurIPS style)
+\setlength{\parindent}{1.5em}
+\setlength{\parskip}{0pt}
+\renewcommand{\arraystretch}{1.12}
+
+% Float spacing
+\setlength{\floatsep}{8pt plus 2pt minus 2pt}
+\setlength{\textfloatsep}{10pt plus 2pt minus 3pt}
+\setlength{\intextsep}{8pt plus 2pt minus 2pt}
+
+% Caption styling (NeurIPS: bold label, small font)
+\captionsetup{font=small, labelfont=bf, labelsep=colon}
+\captionsetup[table]{font=small, labelfont=bf, labelsep=colon, position=top, skip=4pt}
 
 % Helper macro: includes experimental figure if already generated, otherwise renders a clean placeholder box
 \newcommand{\IncludeExpFigure}[3]{%
@@ -36,44 +69,62 @@
     }%
 }
 
-% ==============================================================================
-% TITLE & METADATA (HCMUS SEMINAR REPORT TEMPLATE)
-% ==============================================================================
+% Metadata for cover page (title.tex)
 \newcommand{\coursename}{CS420 — Introduction to Artificial Intelligence}
 \newcommand{\reportname}{[S06] Diffusion Models: From Adding Noise to Generating Images}
 \newcommand{\reporttitle}{SEMINAR REPORT}
-
 \newcommand{\studentname}{Vong Chi Van (24125049)\\ Le Dat Phuc An (24125052)}
-
-% Header
-\lhead{\reporttitle}
-\rhead{
-University of Science - VNUHCM\\
-\coursename
-}
 
 \begin{document}
 
+% ------------------------------------------------------------------------------
+% PAGE 1: COVER PAGE (HCMUS SEMINAR TEMPLATE - KEPT AS REQUESTED)
+% ------------------------------------------------------------------------------
 \input{title.tex}
-\tableofcontents
 \newpage
 
-% ==============================================================================
-% ABSTRACT
-% ==============================================================================
-\begin{abstract}
+% ------------------------------------------------------------------------------
+% PAGE 2+: DDPM RESEARCH PAPER FORMAT (Ho et al., NeurIPS 2020)
+% ------------------------------------------------------------------------------
+\pagestyle{plain}
+\setcounter{page}{1}
+
+% NeurIPS Title Banner
+\begin{center}
+  \hrule height 4pt
+  \vskip 0.22in
+  {\LARGE\bfseries [S06] Diffusion Models: From Adding Noise to Generating Images\par}
+  \vskip 0.08in
+  {\large\textit{Theory, Algorithmic Foundations, and Latent Scaling}}\par
+  \vskip 0.20in
+  \hrule height 1pt
+  \vskip 0.20in
+
+  \begin{tabular}{cc}
+    \textbf{Vong Chi Van} & \textbf{Le Dat Phuc An} \\
+    Student ID: 24125049 & Student ID: 24125052 \\
+    \texttt{24125049@student.hcmus.edu.vn} & \texttt{24125052@student.hcmus.edu.vn}
+  \end{tabular}\\[0.65em]
+  Faculty of Information Technology, University of Science --- VNU-HCM\\
+  CS420: Introduction to Artificial Intelligence (Seminar Research Report)
+  \vskip 0.18in
+\end{center}
+
+% Abstract (NeurIPS style)
+\begin{center}
+  {\bfseries\large Abstract}
+\end{center}
+\vspace{-0.5em}
+\begin{quote}
+\small
 \noindent
 Diffusion models have emerged as the foundational paradigm of modern Generative AI, surpassing Generative Adversarial Networks (GANs), Variational Autoencoders (VAEs), and Autoregressive Models in both visual sample fidelity and mode coverage. This report addresses the central guiding question: \textit{``How can learning to remove noise enable a model to generate brand-new images, and why does latent diffusion drastically reduce computational demands?''} Bridging probabilistic generative modeling with two landmark papers—\textbf{Denoising Diffusion Probabilistic Models (DDPM)} by Ho et al.\ (2020) \cite{ho2020denoising} and \textbf{Latent Diffusion Models (LDM)} by Rombach et al.\ (2022) \cite{rombach2022high}—we first contrast discriminative classifiers $P_\phi(Y\mid\mathbf{x})$ against generative models $p_\theta(\mathbf{x}, Y) = p_\theta(\mathbf{x}\mid Y)P(Y)$, demonstrating how learned class-conditional Gaussians $\mathcal{N}(\hat{\bm{\mu}}_c, \hat{\bm{\Sigma}}_c)$ function both as an optimal Bayes discriminator and as a data generator. We then present a comprehensive analysis of the forward Gaussian noising process $q(\mathbf{x}_t \mid \mathbf{x}_{t-1})$, variance-preserving $\beta_t$ scheduling across data resolutions, the closed-form jump $q(\mathbf{x}_t \mid \mathbf{x}_0)$, the reverse denoising chain $p_\theta(\mathbf{x}_{t-1} \mid \mathbf{x}_t)$, and the simplified noise-prediction objective $L_{\text{simple}}$. Crucially, we prove both intuitively and analytically (via bimodal posterior analysis and the Law of Total Variance) why re-injecting stochastic noise $+\sigma_t\mathbf{z}$ during reverse sampling is strictly necessary to break the symmetry of $L_2$ regression and prevent trajectories from collapsing onto a blurry dataset mean. We provide complete symbol specifications, a step-by-step 1D numerical worked example, an analysis of perceptual VAE compression combined with Cross-Attention conditioning in latent space, and controlled empirical experiments on 2D manifolds and MNIST ($28 \times 28$). Finally, we critically evaluate practical limitations regarding sequential sampling latency, prompt-based compositional control, training data copyright/memorization, and societal bias.
-\end{abstract}
 
-\vspace{0.5em}
-\noindent\textbf{Keywords:} Generative AI, Denoising Diffusion Probabilistic Models (DDPM), Latent Diffusion Models (LDM), Variational Autoencoder (VAE), Cross-Attention, Bayes' Theorem.
+\vspace{0.4em}
+\noindent\textbf{Keywords:} Generative AI, Denoising Diffusion Probabilistic Models (DDPM), Latent Diffusion Models (LDM), Variational Autoencoders (VAEs), Cross-Attention, Bayes' Theorem.
+\end{quote}
+\vspace{0.8em}
 
-\hrulefill
-
-% ==============================================================================
-% 1. INTRODUCTION
-% ==============================================================================
 \section{Introduction}
 
 Synthesizing high-dimensional continuous signals such as natural images ($\mathbf{x} \in \mathbb{R}^{H \times W \times C}$) is a central challenge in artificial intelligence. Unlike supervised discriminative learning—which only seeks decision boundaries separating class labels—a generative model must capture the underlying probability distribution $p_{\text{data}}(\mathbf{x})$ of a complex, low-dimensional data manifold embedded in high-dimensional space, enabling the synthesis of novel samples $\mathbf{x}_{\text{new}} \sim p_\theta(\mathbf{x})$.
@@ -124,7 +175,7 @@ Supervised classification and probabilistic modeling are fundamentally divided i
     \end{itemize}
 \end{enumerate}
 
-\begin{table}[H]
+\begin{table}[htbp]
 \centering
 \caption{Qualitative comparison of major generative model families (Task 1 — The Generative Learning Trilemma).}
 \label{tab:task1_paradigms}
@@ -266,9 +317,9 @@ By \textbf{Tweedie's Formula} and \textbf{Denoising Score Matching} \cite{ho2020
 \end{equation}
 As visualized in Figure \ref{fig:score_field_viz} (developed by our team on our 4-mode 2D manifold), during training each corrupted point $\mathbf{x}_t$ receives a target vector $-\sqrt{1-\bar{\alpha}_t}\bm{\epsilon}$ pointing back to its clean source $\sqrt{\bar{\alpha}_t}\mathbf{x}_0$ (Figure \ref{fig:score_field_viz}a); minimizing MSE averages overlapping targets into the steepest-ascent vector field $\nabla_{\mathbf{x}_t}\log q_t(\mathbf{x}_t)$ with $\mathbf{99.7\%}$ cosine alignment (Figure \ref{fig:score_field_viz}b--c). During reverse sampling ($t = 95 \to 55 \to 25 \to 1$, Figure \ref{fig:score_field_viz}d--g), the learned vector field dynamically evolves from a single global radial basin at high noise ($t=95$), bifurcates across saddle ridges at medium noise ($t=55$), and funnels trajectories directly onto the four sharp data manifolds at $t=1$.
 
-\begin{figure}[H]
+\begin{figure}[htbp]
 \centering
-\IncludeExpFigure{../experiments/figures/task2_score_field_training_and_reverse.png}{\textwidth}{Score-Based Vector Field Visualization for Training and Reverse Diffusion}
+\IncludeExpFigure{../experiments/figures/task2_score_field_training_and_reverse.png}{0.92\textwidth}{Score-Based Vector Field Visualization for Training and Reverse Diffusion}
 \caption{Visualizing the diffusion score vector field $\mathbf{s}_\theta(\mathbf{x}_t, t) = -\bm{\epsilon}_\theta(\mathbf{x}_t, t)/\sqrt{1-\bar{\alpha}_t} \approx \nabla_{\mathbf{x}_t}\log q_t(\mathbf{x}_t)$ developed by our team. \textbf{Top row (Training):} (a) Forward noise jumps $+\sqrt{1-\bar{\alpha}_t}\bm{\epsilon}$; (b) MSE training aligns $-\sqrt{1-\bar{\alpha}_t}\bm{\epsilon}_\theta$ toward the posterior expectation $\mathbb{E}[\sqrt{\bar{\alpha}_t}\mathbf{x}_0\mid\mathbf{x}_t]$; (c) Global learned score field vs.\ exact analytical score ($99.7\%$ cosine alignment). \textbf{Bottom row (Reverse Diffusion $t=95 \to 1$):} Evolution of $\mathbf{s}_\theta(\mathbf{x}, t)$, stochastic particle cloud (pink), and tracked reverse trajectories (cyan) locking onto the 4 data modes.}
 \label{fig:score_field_viz}
 \end{figure}
@@ -276,6 +327,60 @@ As visualized in Figure \ref{fig:score_field_viz} (developed by our team on our 
 % ==============================================================================
 % 3.2 SECTION III & TASK 3: FORMAL EQUATIONS & 1D WORKED NUMERICAL EXAMPLE
 % ==============================================================================
+
+% ==============================================================================
+% 3.2 DDPM TRAINING AND SAMPLING ALGORITHMS (HO ET AL., NEURIPS 2020)
+% ==============================================================================
+\subsection{DDPM Training and Sampling Algorithms}
+
+Ho et al.\ (2020) \cite{ho2020denoising} operationalized diffusion probabilistic modeling through two complementary algorithms displayed below: \textbf{Algorithm 1 (Training)} optimizes the unweighted MSE loss $L_{\text{simple}}$ over uniformly sampled timesteps $t \sim \text{Uniform}(\{1, \dots, T\})$ using the closed-form jump $\mathbf{x}_t = \sqrt{\bar{\alpha}_t}\mathbf{x}_0 + \sqrt{1-\bar{\alpha}_t}\bm{\epsilon}$; \textbf{Algorithm 2 (Sampling)} starts from pure standard Gaussian noise $\mathbf{x}_T \sim \mathcal{N}(\mathbf{0}, \mathbf{I})$ and progressively denoises the latent state back to a clean sample $\mathbf{x}_0$ over $T$ sequential Langevin-like steps.
+
+\begin{figure}[htbp]
+\centering
+\begin{minipage}[t]{0.485\textwidth}
+  \vspace{0pt}
+  \hrule height 0.8pt
+  \vspace{3pt}
+  \noindent\textbf{Algorithm 1} Training
+  \vspace{2pt}
+  \hrule height 0.4pt
+  \vspace{3pt}
+  \footnotesize
+  \begin{algorithmic}[1]
+    \Repeat
+      \State $\mathbf{x}_0 \sim q(\mathbf{x}_0)$
+      \State $t \sim \text{Uniform}(\{1, \dots, T\})$
+      \State $\bm{\epsilon} \sim \mathcal{N}(\mathbf{0}, \mathbf{I})$
+      \State Take gradient descent step on
+      \Statex \hspace{1.2em} $\nabla_\theta \big\|\bm{\epsilon} - \bm{\epsilon}_\theta\big(\sqrt{\bar{\alpha}_t}\mathbf{x}_0 + \sqrt{1 - \bar{\alpha}_t}\bm{\epsilon}, \, t\big)\big\|^2$
+    \Until{converged}
+  \end{algorithmic}
+  \vspace{2pt}
+  \hrule height 0.8pt
+\end{minipage}%
+\hfill
+\begin{minipage}[t]{0.485\textwidth}
+  \vspace{0pt}
+  \hrule height 0.8pt
+  \vspace{3pt}
+  \noindent\textbf{Algorithm 2} Sampling
+  \vspace{2pt}
+  \hrule height 0.4pt
+  \vspace{3pt}
+  \footnotesize
+  \begin{algorithmic}[1]
+    \State $\mathbf{x}_T \sim \mathcal{N}(\mathbf{0}, \mathbf{I})$
+    \For{$t = T, \dots, 1$}
+      \State $\mathbf{z} \sim \mathcal{N}(\mathbf{0}, \mathbf{I})$ if $t > 1$, else $\mathbf{z} = \mathbf{0}$
+      \State $\mathbf{x}_{t-1} = \frac{1}{\sqrt{\alpha_t}}\left(\mathbf{x}_t - \frac{1 - \alpha_t}{\sqrt{1 - \bar{\alpha}_t}}\bm{\epsilon}_\theta(\mathbf{x}_t, t)\right) + \sigma_t \mathbf{z}$
+    \EndFor
+    \State \textbf{return} $\mathbf{x}_0$
+  \end{algorithmic}
+  \vspace{2pt}
+  \hrule height 0.8pt
+\end{minipage}
+\end{figure}
+
 \subsection{Formal Equation Specifications and 1D Worked Numerical Example — Section III \& Task 3}
 
 In accordance with Section III of the seminar specification, Table \ref{tab:eq_symbols} defines every symbol, unit/value range, and modeling assumption for the two required equations:
@@ -284,7 +389,7 @@ In accordance with Section III of the seminar specification, Table \ref{tab:eq_s
     L_{\text{simple}}(\theta) &= \mathbb{E}_{t, \mathbf{x}_0, \bm{\epsilon}}\Big[\big\|\bm{\epsilon} - \bm{\epsilon}_\theta(\mathbf{x}_t, t)\big\|^2\Big] \tag{Equation 2}
 \end{align}
 
-\begin{table}[H]
+\begin{table}[htbp]
 \centering
 \caption{Complete symbol definitions, value ranges/units, and modeling assumptions for Section III.}
 \label{tab:eq_symbols}
@@ -460,9 +565,9 @@ We implemented a self-contained experimental suite in the companion notebook \te
     \end{itemize}
 \end{enumerate}
 
-\begin{figure}[H]
+\begin{figure}[htbp]
 \centering
-\IncludeExpFigure{../experiments/figures/task1_discriminative_vs_generative_2d.png}{\textwidth}{2D Discriminative Classifier vs. Generative Model Used as Discriminator and Generator}
+\IncludeExpFigure{../experiments/figures/task1_discriminative_vs_generative_2d.png}{0.92\textwidth}{2D Discriminative Classifier vs. Generative Model Used as Discriminator and Generator}
 \caption{Team Experiment 1A Results: (a) Pure Discriminative model $P_\phi(Y\mid\mathbf{x})$ learning only decision boundaries; (b) Generative model fitting 2D Gaussians $\mathcal{N}(\hat{\bm{\mu}}_c, \hat{\bm{\Sigma}}_c)$ and acting as a Discriminator via Bayes' Rule $P_\theta(Y\mid\mathbf{x}) \propto p_\theta(\mathbf{x}\mid Y)P(Y)$; (c) Generative sampling $\mathbf{x}_{\text{new}} \sim p_\theta(\mathbf{x})$ and OOD detection ($p_\theta(\mathbf{x}_{\text{OOD}}) \approx 0$).}
 \label{fig:exp_disc_gen}
 \end{figure}
@@ -477,36 +582,36 @@ We implemented a self-contained experimental suite in the companion notebook \te
     \end{itemize}
 \end{enumerate}
 
-\begin{figure}[H]
+\begin{figure}[htbp]
 \centering
 \begin{subfigure}[b]{\textwidth}
     \centering
-    \IncludeExpFigure{../experiments/figures/task1_and_4_diffusion_trajectories.png}{0.92\textwidth}{Forward Noising at 5+ Levels and Reverse Denoising on 28x28 MNIST (Task 4)}
+    \IncludeExpFigure{../experiments/figures/task1_and_4_diffusion_trajectories.png}{0.88\textwidth}{Forward Noising at 5+ Levels and Reverse Denoising on 28x28 MNIST (Task 4)}
     \caption{Task 4 Demonstration: Forward noising $q(\mathbf{x}_t\mid\mathbf{x}_0)$ across increasing noise levels (top) and learned reverse U-Net denoising $p_\theta(\mathbf{x}_{t-1}\mid\mathbf{x}_t)$ from pure noise $\mathbf{x}_{300} \to \mathbf{x}_0$ (bottom).}
 \end{subfigure}
 
 \vspace{0.6em}
 \begin{subfigure}[b]{\textwidth}
     \centering
-    \IncludeExpFigure{../experiments/figures/task1_visual_samples_comparison.png}{0.96\textwidth}{Side-by-Side Generated Samples Across 4 Generative Paradigms}
+    \IncludeExpFigure{../experiments/figures/task1_visual_samples_comparison.png}{0.88\textwidth}{Side-by-Side Generated Samples Across 4 Generative Paradigms}
     \caption{Qualitative comparison of samples generated from pure noise by Conv-VAE, PixelCNN, DCGAN, and Mini-DDPM against real MNIST.}
 \end{subfigure}
 \caption{Team Experiment 1B \& Task 4 Visual Results on $28 \times 28$ MNIST.}
 \label{fig:exp_task4_and_samples}
 \end{figure}
 
-\begin{figure}[H]
+\begin{figure}[htbp]
 \centering
 \begin{subfigure}[b]{\textwidth}
     \centering
-    \IncludeExpFigure{../experiments/figures/task1_training_stability_curves.png}{0.96\textwidth}{Training Loss Curves Across the 4 Generative Paradigms}
+    \IncludeExpFigure{../experiments/figures/task1_training_stability_curves.png}{0.88\textwidth}{Training Loss Curves Across the 4 Generative Paradigms}
     \caption{Training loss dynamics: monotonic convergence of Conv-VAE, PixelCNN, and Mini-DDPM vs.\ coupled adversarial oscillations of DCGAN.}
 \end{subfigure}
 
 \vspace{0.5em}
 \begin{subfigure}[b]{\textwidth}
     \centering
-    \IncludeExpFigure{../experiments/figures/task1_quantitative_trilemma_metrics.png}{0.94\textwidth}{Quantitative Generative Trilemma Metrics}
+    \IncludeExpFigure{../experiments/figures/task1_quantitative_trilemma_metrics.png}{0.88\textwidth}{Quantitative Generative Trilemma Metrics}
     \caption{Quantitative comparison of Edge Sharpness (Laplacian Variance $\uparrow$), Distribution Fidelity (MNIST-FID $\downarrow$), and Sampling Latency ($\downarrow$).}
 \end{subfigure}
 \caption{Team Experiment 1C Training Stability and Quantitative Trilemma Evaluation.}
@@ -557,23 +662,23 @@ To move beyond small-scale grayscale digits and examine how each paradigm operat
     \end{itemize}
 \end{enumerate}
 
-\begin{figure}[H]
+\begin{figure}[htbp]
 \centering
-\IncludeExpFigure{../experiments/figures/task1_pretrained_rgb_comparison.png}{\textwidth}{Pretrained RGB Baselines Comparison on CIFAR-10 (Task 1)}
+\IncludeExpFigure{../experiments/figures/task1_pretrained_rgb_comparison.png}{0.92\textwidth}{Pretrained RGB Baselines Comparison on CIFAR-10 (Task 1)}
 \caption{Task 1 Pretrained Baseline Comparison on Natural RGB Images ($32 \times 32$): (a) Pretrained VAE decoded from random Gaussian prior $\mathbf{z} \sim \mathcal{N}(\mathbf{0}, \mathbf{I})$ (blurry pastel); (b) Pretrained DCGAN (sharp, 1-step, rigid modes); (c) Pretrained DDPM \cite{ho2020denoising} (sharp + full diversity); (d) Pretrained VAE perceptual reconstruction $\mathbf{x} \to \mathcal{D}(\mathcal{E}(\mathbf{x}))$.}
 \label{fig:pretrained_rgb_comparison}
 \end{figure}
 
-\begin{figure}[H]
+\begin{figure}[htbp]
 \centering
-\IncludeExpFigure{../experiments/figures/task4_pretrained_ddpm_reverse_trajectory.png}{\textwidth}{Pretrained DDPM Reverse Denoising Process (Task 4 Bonus)}
+\IncludeExpFigure{../experiments/figures/task4_pretrained_ddpm_reverse_trajectory.png}{0.92\textwidth}{Pretrained DDPM Reverse Denoising Process (Task 4 Bonus)}
 \caption{Task 4 Bonus: Reverse denoising process on official pretrained DDPM (\texttt{google/ddpm-cifar10-32}). Top row: intermediate noisy state $\mathbf{x}_t$. Bottom row: predicted clean image $\hat{\mathbf{x}}_0(\mathbf{x}_t)$ at corresponding timesteps (matching Ho et al.\ \cite{ho2020denoising} Figure 3).}
 \label{fig:pretrained_ddpm_trajectory}
 \end{figure}
 
-\begin{figure}[H]
+\begin{figure}[htbp]
 \centering
-\IncludeExpFigure{../experiments/figures/task6_pixel_ddpm_vs_latent_ldm.png}{\textwidth}{Task 6 Empirical Benchmark: Pixel DDPM vs. Latent LDM on 256x256 CelebA-HQ}
+\IncludeExpFigure{../experiments/figures/task6_pixel_ddpm_vs_latent_ldm.png}{0.92\textwidth}{Task 6 Empirical Benchmark: Pixel DDPM vs. Latent LDM on 256x256 CelebA-HQ}
 \caption{Task 6 Empirical Head-to-Head Comparison on CelebA-HQ ($256 \times 256$): (a) Pixel-space DDPM ($196{,}608$ dims, $2.29\text{s}$); (b) LDM spatial latent $\mathbf{z}_0$ ($12{,}288$ dims, $\mathbf{16\times}$ compression); (c) Decoded Latent LDM sample $\hat{\mathbf{x}}_0 = \mathcal{D}(\mathbf{z}_0)$ ($1.78\text{s}$, $1.28\times$ faster); (d) Measured GPU latency comparison.}
 \label{fig:task6_celeba_benchmark}
 \end{figure}
@@ -581,7 +686,7 @@ To move beyond small-scale grayscale digits and examine how each paradigm operat
 \subsection{Part C: Theoretical \& Literature Comparison: Pixel-Space Diffusion (DDPM) vs.\ Latent Diffusion (LDM) — Task 6}
 Table \ref{tab:pixel_vs_latent} compares pixel-space diffusion (DDPM \cite{ho2020denoising}) against Latent Diffusion (LDM \cite{rombach2022high}) across 6 explicit criteria, supported by empirical benchmarks reported in the original papers (on CelebA-HQ $256 \times 256$ and ImageNet).
 
-\begin{table}[H]
+\begin{table}[htbp]
 \centering
 \caption{Evidence-supported comparison between Pixel-Space Diffusion (DDPM) and Latent Diffusion (LDM) across explicit criteria (Task 6 — Benchmarks from Ho et al., 2020 \cite{ho2020denoising} and Rombach et al., 2022 \cite{rombach2022high}).}
 \label{tab:pixel_vs_latent}
