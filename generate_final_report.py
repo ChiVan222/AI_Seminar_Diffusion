@@ -124,7 +124,7 @@ tex_content = r"""\documentclass[10pt,a4paper]{article}
 \begin{quote}
 \small
 \noindent
-Diffusion models have emerged as a dominant paradigm in generative artificial intelligence, achieving unprecedented visual fidelity and robust likelihood-based training without adversarial instability. This report investigates the fundamental guiding question: \textit{how can learning to remove noise enable a neural network to generate novel images, and why does diffusion within a learned latent space drastically reduce computational requirements?} Grounded in two foundational papers, Denoising Diffusion Probabilistic Models (Ho et al., 2020) and Latent Diffusion Models (Rombach et al., 2022), we examine the mathematical principles of forward Gaussian corruption, reverse score-based denoising, and perceptual latent compression. Through theoretical derivations, a step-by-step numerical worked example, and empirical benchmark experiments, we provide an integrated analysis of diffusion dynamics, high-resolution scaling trade-offs, and practical deployment limitations.
+Diffusion models have emerged as a dominant paradigm in generative artificial intelligence, achieving unprecedented visual fidelity and robust likelihood-based training without adversarial instability. This report investigates the fundamental guiding question: \textit{how can learning to remove noise enable a neural network to generate novel images, and why does diffusion within a learned latent space drastically reduce computational requirements?} Grounded in two foundational papers, Denoising Diffusion Probabilistic Models (Ho et al., 2020) and Latent Diffusion Models (Rombach et al., 2022), we examine the mathematical principles of forward Gaussian corruption, reverse denoising, and perceptual latent compression. Through theoretical derivations, a step-by-step numerical worked example, and empirical benchmark experiments, we provide an integrated analysis of diffusion dynamics, high-resolution scaling trade-offs, and practical deployment limitations.
 
 \vspace{0.4em}
 \noindent\textit{Keywords:} Generative AI, Denoising Diffusion Probabilistic Models, Latent Diffusion Models, Variational Autoencoders, Cross-Attention, Generative Learning Trilemma.
@@ -159,9 +159,9 @@ then learning the reverse process allows a neural network to start from random G
     \mathbf{x}_T \to \mathbf{x}_{T-1} \to \dots \to \mathbf{x}_0
 \end{equation}
 
-Furthermore, to overcome the immense computational cost of evaluating a full-resolution neural network $1000$ times in pixel space, Latent Diffusion Models (LDM) \cite{rombach2022high} first compress images into the compact latent space of a pretrained Variational Autoencoder before executing diffusion. This representation reduces the state dimensionality by $48\times$ and cuts self-attention complexity by $4{,}096\times$, rendering high-resolution synthesis tractable on standard consumer hardware.
+Furthermore, to overcome the immense computational cost of evaluating a full-resolution neural network in pixel space, Latent Diffusion Models (LDM) \cite{rombach2022high} first compress images into the compact latent space of a pretrained Variational Autoencoder before executing diffusion. This representation reduces the state dimensionality by $48\times$ and cuts self-attention complexity by $4{,}096\times$, rendering high-resolution synthesis tractable on standard consumer hardware.
 
-\paragraph{Seminar Tasks and Report Organization.}
+\paragraph{Tasks and Report Organization.}
 To systematically address the guiding question in accordance with the seminar requirements, this report is structured around six concrete tasks:
 \begin{itemize}[leftmargin=1.8em, itemsep=0.3em]
     \item \textit{Task 1: Foundational Paradigms and the Generative Trilemma.} We contrast discriminative classifiers with generative modeling and analyze autoregressive models, variational autoencoders, generative adversarial networks, and diffusion models across the generative learning trilemma (Sections \ref{sec:bg_disc_gen} and \ref{sec:bg_trilemma}).
@@ -177,7 +177,7 @@ To systematically address the guiding question in accordance with the seminar re
 % ==============================================================================
 \section{Background and Paper Review}
 
-\subsection{Distinguishing Discriminative vs.\ Generative Models (Task 1)}
+\subsection{Distinguishing Discriminative vs.\ Generative Models}
 \label{sec:bg_disc_gen}
 
 Supervised machine learning and probabilistic modeling are fundamentally divided into two complementary paradigms:
