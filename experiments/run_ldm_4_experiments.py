@@ -16,21 +16,25 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
 # ==============================================================================
-# 0. HARDWARE & A100 / CUDA OPTIMIZATION SETUP
+# 0. HARDWARE & GPU ACCELERATION SETUP (Optimized for NVIDIA Tesla T4 / A100 / Colab)
 # ==============================================================================
 SEED = 42
 np.random.seed(SEED)
 torch.manual_seed(SEED)
 if torch.cuda.is_available():
     torch.cuda.manual_seed_all(SEED)
-    # Enable TF32 TensorCore acceleration (crucial for NVIDIA A100 & Ampere/Ada GPUs)
-    torch.backends.cuda.matmul.allow_tf32 = True
-    torch.backends.cudnn.allow_tf32 = True
+    # Enable TF32 TensorCore acceleration if supported (Ampere / Ada / Hopper, cc >= 8)
+    if torch.cuda.get_device_capability()[0] >= 8:
+        torch.backends.cuda.matmul.allow_tf32 = True
+        torch.backends.cudnn.allow_tf32 = True
     torch.backends.cudnn.benchmark = True
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 gpu_name = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "CPU"
-print(f"Using device: {device} ({gpu_name})")
+vram_gb = (torch.cuda.get_device_properties(0).total_memory / (1024**3)) if torch.cuda.is_available() else 0.0
+print(f"Using device: {device} | GPU: {gpu_name} ({vram_gb:.1f} GB VRAM)")
+if "T4" in gpu_name:
+    print("Detected NVIDIA Tesla T4 GPU on Google Colab! Turing Tensor Cores enabled.")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FIG_DIR = os.path.join(BASE_DIR, "figures")
