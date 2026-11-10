@@ -4,7 +4,7 @@
 
 ---
 
-## Google Colab Notebooks (1-Click Run on T4 GPU)
+## Google Colab Notebooks
 
 1. **Tasks 5 & 6 (Latent Diffusion Models Suite):**
    * [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/ChiVan222/AI_Seminar_Diffusion/blob/main/experiments/task5_6_ldm_4_experiments.ipynb)
