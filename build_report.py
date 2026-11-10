@@ -95,7 +95,7 @@ Ho et al.\ (2020) \cite{ho2020denoising} operationalized diffusion probabilistic
 
 '''
 
-target_marker = r'\subsection{Formal Equation Specifications and 1D Worked Numerical Example — Section III \& Task 3}'
+target_marker = r'\subsection{Formal Equation Specifications and 1D Worked Numerical Example (Section III \& Task 3)}'
 if target_marker in body:
     body = body.replace(target_marker, alg_box + target_marker)
     print('Algorithm box inserted successfully.')
@@ -174,7 +174,7 @@ full_latex = r'''\UseRawInputEncoding
 }
 
 % Metadata for cover page (title.tex)
-\newcommand{\coursename}{CS420 — Introduction to Artificial Intelligence}
+\newcommand{\coursename}{CS420: Introduction to Artificial Intelligence}
 \newcommand{\reportname}{[S06] Diffusion Models: From Adding Noise to Generating Images}
 \newcommand{\reporttitle}{SEMINAR REPORT}
 \newcommand{\studentname}{Vong Chi Van (24125049)\\ Le Dat Phuc An (24125052)}
@@ -209,7 +209,7 @@ full_latex = r'''\UseRawInputEncoding
     Student ID: 24125049 & Student ID: 24125052 \\
     \texttt{24125049@student.hcmus.edu.vn} & \texttt{24125052@student.hcmus.edu.vn}
   \end{tabular}\\[0.65em]
-  Faculty of Information Technology, University of Science --- VNU-HCM\\
+  Faculty of Information Technology, University of Science, VNU-HCM\\
   CS420: Introduction to Artificial Intelligence (Seminar Research Report)
   \vskip 0.18in
 \end{center}

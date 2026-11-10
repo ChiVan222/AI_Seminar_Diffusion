@@ -61,7 +61,7 @@ $$p_\theta(x^{(1)}, x^{(2)}, \dots, x^{(n)}) = \prod_{t=1}^n p_\theta\big(x^{(t)
   * **PixelCNN:** Replaces slow RNNs with masked 2D convolutions (zeroing out filter weights corresponding to "future" pixels below and to the right of the center pixel) so all conditionals can be evaluated in parallel during training.
 * **Pros & Cons:**
   * *Pro:* Exact log-likelihood $\log p_\theta(x)$ with no variational approximation.
-  * *Con:* **Extremely slow sequential generation** ($\mathcal{O}(n)$ forward passes—one per pixel/sub-pixel), and **no single compressed latent code $z$** representing the global semantics of the image.
+  * *Con:* **Extremely slow sequential generation** ($\mathcal{O}(n)$ forward passes, one per pixel/sub-pixel), and **no single compressed latent code $z$** representing the global semantics of the image.
 
 ---
 
@@ -158,7 +158,7 @@ $$\log p_\theta(x_i) = \underbrace{\mathcal{L}_i(p_\theta, q_i)}_{\text{ELBO}} +
 ### 1.7 Amortized Variational Inference: Why $q_\phi(z|x)$ is an Encoder Network
 Initially, one could parameterize a separate Gaussian distribution $q_i(z) = \mathcal{N}(\mu_i, \sigma_i^2)$ for every single training image $x_i$ ($i = 1, \dots, N$).
 * **Why per-image parameters $(\mu_i, \sigma_i)$ are impractical:** If your dataset has $N = 10,000,000$ images, storing and optimizing a separate lookup table of $(\mu_i, \sigma_i)$ vectors for each image scales poorly with $N$, and if a new test image $x_{\text{test}}$ arrives, you have no way to infer its latent code without running an expensive iterative optimization loop from scratch.
-* **The Solution (Amortized Variational Inference):** At the end of Lecture 18 Part 1 ([00:27:14]), Professor Levine replaces the per-image lookup table $q_i(z)$ with a single shared neural network—**the Probabilistic Encoder $q_\phi(z|x_i)$** with weights $\phi$—that takes any image $x_i$ as input and outputs two vectors: its mean $\mu_\phi(x_i)$ and standard deviation $\sigma_\phi(x_i)$:
+* **The Solution (Amortized Variational Inference):** At the end of Lecture 18 Part 1 ([00:27:14]), Professor Levine replaces the per-image lookup table $q_i(z)$ with a single shared neural network, **the Probabilistic Encoder $q_\phi(z|x_i)$** with weights $\phi$, that takes any image $x_i$ as input and outputs two vectors: its mean $\mu_\phi(x_i)$ and standard deviation $\sigma_\phi(x_i)$:
   $$q_\phi(z|x_i) = \mathcal{N}\big(\mu_\phi(x_i), \, \text{diag}(\sigma_\phi^2(x_i))\big)$$
   *(In practice, the encoder network outputs $\mu_\phi(x_i)$ and $\log \sigma_\phi^2(x_i)$ so the network outputs can be unconstrained real numbers in $(-\infty, +\infty)$, and we exponentiate to obtain $\sigma_\phi(x_i) = \exp(\frac{1}{2}\log \sigma_\phi^2(x_i)) > 0$).*
 
@@ -244,10 +244,10 @@ Comparing where noise is injected across generative architectures reveals a clea
 
 | Architecture | Where is Noise Injected? | Nature of the Latent Variable | Generative Quality & Speed |
 | :--- | :--- | :--- | :--- |
-| **Denoising Autoencoder (DAE)** | Added directly to the input **$x$** at the very start ($\tilde{x} = x + \text{noise}$). | Deterministic bottleneck vector $z$; used for representation learning. | **Poor generator** — No prior $p(z)$ defined to sample new images from scratch. |
-| **Variational Autoencoder (VAE)** | Added to the compressed bottleneck **$z$** in the middle of the network ($z = \mu_\phi(x) + \sigma_\phi(x) \odot \epsilon$). | 1-step compressed latent $z$ ($\dim(z) \ll \dim(x)$). | **Fast (1 step), but blurry** — A single Gaussian step struggles to capture sharp multi-modal high-frequency details. |
-| **Diffusion Models (DDPM)** | Added gradually over $T=1000$ steps directly in pixel space ($\mathbf{x}_0 \to \mathbf{x}_1 \to \dots \to \mathbf{x}_T$). | $T$-step Markov chain of latents with the **exact same dimensionality** as the image. | **Very sharp, but slow** — Running a full-resolution U-Net $1000$ times sequentially is computationally expensive. |
-| **Latent Diffusion (LDM / Stable Diffusion)** | First uses a **Fully Convolutional VAE** to compress $x \to z_0$, then runs the $T$-step **DDPM** noise process inside **$z$-space** ($z_0 \to z_1 \dots \to z_T$). | Spatial compression via VAE ($64 \times 64 \times 4$) + $T$-step Markov diffusion trajectory in latent space. | **Best of both worlds** — Sharp multi-step generation with fast computation inside the compact VAE latent space. |
+| **Denoising Autoencoder (DAE)** | Added directly to the input **$x$** at the very start ($\tilde{x} = x + \text{noise}$). | Deterministic bottleneck vector $z$; used for representation learning. | **Poor generator**: No prior $p(z)$ defined to sample new images from scratch. |
+| **Variational Autoencoder (VAE)** | Added to the compressed bottleneck **$z$** in the middle of the network ($z = \mu_\phi(x) + \sigma_\phi(x) \odot \epsilon$). | 1-step compressed latent $z$ ($\dim(z) \ll \dim(x)$). | **Fast (1 step), but blurry**: A single Gaussian step struggles to capture sharp multi-modal high-frequency details. |
+| **Diffusion Models (DDPM)** | Added gradually over $T=1000$ steps directly in pixel space ($\mathbf{x}_0 \to \mathbf{x}_1 \to \dots \to \mathbf{x}_T$). | $T$-step Markov chain of latents with the **exact same dimensionality** as the image. | **Very sharp, but slow**: Running a full-resolution U-Net $1000$ times sequentially is computationally expensive. |
+| **Latent Diffusion (LDM / Stable Diffusion)** | First uses a **Fully Convolutional VAE** to compress $x \to z_0$, then runs the $T$-step **DDPM** noise process inside **$z$-space** ($z_0 \to z_1 \dots \to z_T$). | Spatial compression via VAE ($64 \times 64 \times 4$) + $T$-step Markov diffusion trajectory in latent space. | **Best of both worlds**: Sharp multi-step generation with fast computation inside the compact VAE latent space. |
 
 ---
 
@@ -328,7 +328,7 @@ Here is how every piece of this slide equation translates into practical PyTorch
 
 If $q_\phi(z|x_i) = \mathcal{N}(0, I)$ for every $x_i$:
 * Then $z = 0 + 1 \cdot \epsilon = \epsilon \sim \mathcal{N}(0, I)$ contains **zero information** about which image $x_i$ was fed into the encoder.
-* The decoder $p_\theta(x_i | z)$ is handed pure random static $z$ and asked to reconstruct a specific dog on step 1, and a specific sports car on step 2, from the exact same noise distribution—causing the reconstruction error to explode!
+* The decoder $p_\theta(x_i | z)$ is handed pure random static $z$ and asked to reconstruct a specific dog on step 1, and a specific sports car on step 2, from the exact same noise distribution, causing the reconstruction error to explode!
 
 | Force in the ELBO | What it pushes $\mu_\phi(x_i)$ and $\sigma_\phi(x_i)$ to do | What happens if ONLY this term wins? |
 | :--- | :--- | :--- |
@@ -392,7 +392,7 @@ Maximizing the Gaussian log-likelihood $\frac{1}{N}\sum_{i=1}^N \log p_\theta(x_
 $$\min_{\hat{x}} \frac{1}{N} \sum_{i=1}^N \big\| x_i - \hat{x} \big\|^2$$
 Take the gradient with respect to the constant output $\hat{x}$ and set it to zero:
 $$\nabla_{\hat{x}} \left( \frac{1}{N} \sum_{i=1}^N \| x_i - \hat{x} \|^2 \right) = \frac{2}{N} \sum_{i=1}^N (\hat{x} - x_i) = 0 \implies \hat{x}^* = \frac{1}{N} \sum_{i=1}^N x_i$$
-The optimal constant prediction $\hat{x}^*$ under $L_2$ loss is literally the **pixel-by-pixel arithmetic mean of the entire dataset**! Because the decoder receives no information from $z$ about which specific dog, cat, or car $x_i$ it is supposed to draw, it hedges its bets by outputting the superimposed average of all images—which looks like a blurry, ghostly gray blob.
+The optimal constant prediction $\hat{x}^*$ under $L_2$ loss is literally the **pixel-by-pixel arithmetic mean of the entire dataset**! Because the decoder receives no information from $z$ about which specific dog, cat, or car $x_i$ it is supposed to draw, it hedges its bets by outputting the superimposed average of all images, which looks like a blurry, ghostly gray blob.
 
 #### Problem 2: Prior Hole / Loose KL Constraint (Poor Generation vs. Good Reconstruction)
 If the KL weight is too weak (or $q_\phi(z|x_i)$ fails to cover $p(z)$), the encoder shrinks $\sigma_\phi(x_i) \to 0$ and scatters $\mu_\phi(x_i)$ leaving empty gaps inside $\mathcal{N}(0, I)$. Reconstructions look sharp, but sampling $z \sim \mathcal{N}(0, I)$ at test time hits empty holes and produces broken samples. *(Common fix: **$\beta$-VAE** or **KL Annealing**, where a weight $\beta$ on $- \beta D_{\text{KL}}$ is gradually warmed up from $0 \to 1$ during training).*
@@ -543,7 +543,7 @@ In Lecture 19 Part 2, Professor Levine explains why training GANs in practice is
    * **The Fix (Non-Saturating Heuristic Loss, Step 5 on the Slide):** Instead of minimizing $\log(1 - D(G(z)))$, we train $G$ to **minimize $-\log D(G(z))$** (maximize $\log D(G(z))$). Near $D \approx 0$, $-\log(D)$ goes to $+\infty$ with a very steep slope $-\frac{1}{D}$, providing huge gradients when $G$ is performing poorly!
 2. **Mode Collapse:**
    * Instead of covering all modes of $p_{\text{data}}(x)$ (e.g., all 10 digits of MNIST), $G(z)$ discovers one single realistic image $x^*$ that currently fools $D(x^*) \approx 1$ and maps every $z$ to that single mode $x^*$.
-   * Then in Step 4, $D$ notices that $x^*$ is flooding $\mathcal{D}_F$ and sets $D(x^*) \to 0$, causing $G$ to jump all its mass to a different single mode—playing an endless game of cat-and-mouse (oscillating without converging).
+   * Then in Step 4, $D$ notices that $x^*$ is flooding $\mathcal{D}_F$ and sets $D(x^*) \to 0$, causing $G$ to jump all its mass to a different single mode, playing an endless game of cat-and-mouse (oscillating without converging).
    * **Why VAEs don't suffer from Mode Collapse, while GANs do:** VAEs maximize $\sum_{i=1}^N \log p_\theta(x_i)$ over *every* training example $x_i$ (mode-covering $D_{\text{KL}}(p_{\text{data}} \| p_\theta)$), so ignoring even one training image incurs an infinite penalty. GANs with the $-\log D(G(z))$ loss largely optimize reverse-KL-like behavior (mode-seeking), preferring to generate a few ultra-sharp realistic samples rather than blurry averages across modes.
 
 ---

@@ -26,7 +26,7 @@ def add_code(source):
 # CELL 1: TITLE & OVERVIEW
 # ==============================================================================
 add_markdown(r"""
-# CS420 Seminar [S06] — Task 1 Experimental Notebook
+# CS420 Seminar [S06]: Task 1 Experimental Notebook
 ## Distinguishing Discriminative vs. Generative Models & Comparing Generative Paradigms (VAE vs. Autoregressive PixelCNN vs. GAN vs. Diffusion DDPM)
 
 **Objective (Task 1 of `S06_Seminar_DIFF.pdf`):**
@@ -34,15 +34,15 @@ add_markdown(r"""
 
 In this self-contained experimental notebook, we go beyond theoretical tables and **empirically prove** the strengths, weaknesses, and visual/quantitative quality differences across all major paradigms on the exact same dataset (**MNIST $28 \times 28$** + a **2D Multi-Modal Toy Benchmark**):
 
-1. **Experiment 1A — Discriminative vs. Generative Models:**
+1. **Experiment 1A: Discriminative vs. Generative Models:**
    * **2D Toy Proof ("8-Gaussians Ring"):** Visualizes how a **Discriminative Classifier $p_\phi(y \mid x)$** carves up space with decision boundaries (assigning $>99\%$ confidence to empty regions far outside the data manifold, with zero ability to sample data), whereas a **Generative Model $p_\theta(x)$** captures the actual data distribution and synthesizes new points $x_{\text{new}} \sim p_\theta(x)$.
    * **MNIST Discriminative Classifier $D_{\text{cls}}(x)$:** Trains a $99\%$-accurate CNN classifier on MNIST. We use it both to demonstrate discriminative inference $p_\phi(y \mid x)$ and as an **"MNIST Inception / FID Evaluator"** to quantitatively grade our generative models!
-2. **Experiment 1B — Apples-to-Apples Training of 4 Generative Paradigms on MNIST ($28 \times 28$):**
-   * **Model 1: Variational Autoencoder (Conv-VAE)** *(CS 182 Latent Variable Baseline)* — Optimizes the single-step $\text{ELBO} = \mathbb{E}_{q_\phi}[\log p_\theta(x\mid z)] - D_{\text{KL}}(q_\phi(z\mid x) \,\|\, \mathcal{N}(0,I))$.
-   * **Model 2: Autoregressive Model (Masked PixelCNN)** — Optimizes exact likelihood $\prod_{i=1}^{784} p_\theta(x^{(i)} \mid x^{(<i)})$ via causal masked convolutions (`Mask A` & `Mask B`), sampling sequentially pixel-by-pixel ($784$ steps).
-   * **Model 3: Generative Adversarial Network (DCGAN)** — Optimizes a likelihood-free two-player minimax game between Generator $G_\theta(z)$ and Discriminator $D_\phi(x)$.
-   * **Model 4: Denoising Diffusion Probabilistic Model (Mini-DDPM)** — Optimizes the simplified noise-prediction objective $L_{\text{simple}} = \mathbb{E}_{t, x_0, \epsilon}\big[\|\epsilon - \epsilon_\theta(x_t, t)\|^2\big]$ with a time-conditioned U-Net over $T=300$ steps.
-3. **Experiment 1C — Qualitative & Quantitative Quality Scorecard (The Generative Learning Trilemma):**
+2. **Experiment 1B: Apples-to-Apples Training of 4 Generative Paradigms on MNIST ($28 \times 28$):**
+   * **Model 1: Variational Autoencoder (Conv-VAE)** *(CS 182 Latent Variable Baseline)*: Optimizes the single-step $\text{ELBO} = \mathbb{E}_{q_\phi}[\log p_\theta(x\mid z)] - D_{\text{KL}}(q_\phi(z\mid x) \,\|\, \mathcal{N}(0,I))$.
+   * **Model 2: Autoregressive Model (Masked PixelCNN)**: Optimizes exact likelihood $\prod_{i=1}^{784} p_\theta(x^{(i)} \mid x^{(<i)})$ via causal masked convolutions (`Mask A` & `Mask B`), sampling sequentially pixel-by-pixel ($784$ steps).
+   * **Model 3: Generative Adversarial Network (DCGAN)**: Optimizes a likelihood-free two-player minimax game between Generator $G_\theta(z)$ and Discriminator $D_\phi(x)$.
+   * **Model 4: Denoising Diffusion Probabilistic Model (Mini-DDPM)**: Optimizes the simplified noise-prediction objective $L_{\text{simple}} = \mathbb{E}_{t, x_0, \epsilon}\big[\|\epsilon - \epsilon_\theta(x_t, t)\|^2\big]$ with a time-conditioned U-Net over $T=300$ steps.
+3. **Experiment 1C: Qualitative & Quantitative Quality Scorecard (The Generative Learning Trilemma):**
    * Side-by-side generated image grids & zoomed-in stroke sharpness profiles (demonstrating VAE blurriness vs. GAN/DDPM crispness vs. PixelCNN sequential drift).
    * Mode coverage histograms across classes `0`–`9` (catching GAN mode dropping vs. full mode coverage in VAE/PixelCNN/DDPM).
    * **Objective Metrics Table:** Edge Sharpness (Laplacian Variance), Classifier Confidence, MNIST Inception Score (IS $\uparrow$), Frechet MNIST Distance (FID $\downarrow$), Mode Imbalance KL ($\downarrow$), and Wall-Clock Sampling Latency (ms/batch).
@@ -118,12 +118,12 @@ add_markdown(r"""
 ### 1.1 2D Benchmark: Pure Discriminative Classifier $P_\phi(Y \mid \mathbf{x})$ vs. Generative Learned Gaussians $p_\theta(\mathbf{x} \mid Y)$ Used as a Discriminator (Bayes' Rule) & Generator
 Following the intuitive framework from [*"Generative vs Discriminative Models ! Clearly Explained !"*](https://www.youtube.com/watch?v=ut3ehErPvHo):
 
-1. **Discriminative Models ($P_\phi(Y \mid \mathbf{x})$ — e.g., Logistic Regression, SVM, MLP Classifier):**
+1. **Discriminative Models ($P_\phi(Y \mid \mathbf{x})$, e.g., Logistic Regression, SVM, MLP Classifier):**
    * **What they learn:** Directly optimize **decision boundaries** in $\mathbb{R}^D$ to separate classes without modeling how features $\mathbf{x}$ are distributed inside each class.
    * **Limitations:** (i) They have no density model $p(\mathbf{x})$ and **cannot sample new data**; (ii) At an out-of-distribution point $\mathbf{x}_{\text{OOD}} = (4.5, 4.5)$ in empty space far from all data, they output **$\approx 100\%$ confidence** solely because the point lies on one side of the separating hyperplane.
 
-2. **Generative Models ($p_\theta(\mathbf{x}, Y) = p_\theta(\mathbf{x} \mid Y) P(Y)$ — e.g., Gaussian Bayes / GMM, Diffusion):**
-   * **What they learn:** Explicitly fit the underlying **data distribution** of each class—here, fitting a **2D Gaussian distribution** $\mathcal{N}(\hat{\bm{\mu}}_c, \hat{\bm{\Sigma}}_c)$ to each class $c \in \{0, 1, 2, 3\}$ (or learning the score field $\nabla_{\mathbf{x}}\log p_\theta(\mathbf{x})$ via Diffusion).
+2. **Generative Models ($p_\theta(\mathbf{x}, Y) = p_\theta(\mathbf{x} \mid Y) P(Y)$, e.g., Gaussian Bayes / GMM, Diffusion):**
+   * **What they learn:** Explicitly fit the underlying **data distribution** of each class, here fitting a **2D Gaussian distribution** $\mathcal{N}(\hat{\bm{\mu}}_c, \hat{\bm{\Sigma}}_c)$ to each class $c \in \{0, 1, 2, 3\}$ (or learning the score field $\nabla_{\mathbf{x}}\log p_\theta(\mathbf{x})$ via Diffusion).
    * **Using the Learned Generative Model as a Discriminator / Classifier (via Bayes' Theorem):**
      Once the class-conditional Gaussians $p_\theta(\mathbf{x} \mid Y = c) = \mathcal{N}(\mathbf{x};\, \hat{\bm{\mu}}_c, \hat{\bm{\Sigma}}_c)$ and class priors $P(Y = c)$ are learned, the generative model acts as a **Bayes Classifier (Discriminator)** for any query point $\mathbf{x}_q$:
      $$P_\theta(Y = c \mid \mathbf{x}_q) = \frac{p_\theta(\mathbf{x}_q \mid Y = c)\, P(Y = c)}{\sum_{k=0}^{C-1} p_\theta(\mathbf{x}_q \mid Y = k)\, P(Y = k)}, \qquad \hat{y}_{\text{Bayes}}(\mathbf{x}_q) = \arg\max_{c}\; p_\theta(\mathbf{x}_q \mid Y = c)\, P(Y = c)$$
@@ -736,7 +736,7 @@ print(f"Discriminative Classifier Test Accuracy: {100.0 * correct / total:.2f}% 
 """)
 
 # ==============================================================================
-# CELL 5: EXPERIMENT 1B — MODEL 1: VARIATIONAL AUTOENCODER (CONV-VAE)
+# CELL 5: EXPERIMENT 1B: MODEL 1: VARIATIONAL AUTOENCODER (CONV-VAE)
 # ==============================================================================
 add_markdown(r"""
 ---
@@ -744,7 +744,7 @@ add_markdown(r"""
 
 To ensure a fair, controlled comparison on a single GPU, we train all 4 generative paradigms on the **exact same MNIST training set**:
 
-### 2.1 Model 1: Variational Autoencoder (Conv-VAE — CS 182 Baseline)
+### 2.1 Model 1: Variational Autoencoder (Conv-VAE, CS 182 Baseline)
 * **Mechanism:** Compresses $x \in [0, 1]^{1 \times 28 \times 28}$ via a probabilistic encoder $q_\phi(z \mid x) = \mathcal{N}(\mu_\phi(x), \text{diag}(\sigma_\phi^2(x)))$ into a $16$-dimensional latent vector $z \in \mathbb{R}^{16}$ using the **Reparameterization Trick** $z = \mu_\phi(x) + \sigma_\phi(x) \odot \epsilon$.
 * **Training Objective (Negative ELBO):**
   $$\mathcal{L}_{\text{VAE}}(\theta, \phi) = \underbrace{\text{BCE}\big(x, \hat{x}_\theta(z)\big)}_{\text{Reconstruction Loss}} + \underbrace{\frac{1}{2}\sum_{d=1}^{16}\big(\mu_{\phi,d}^2 + \sigma_{\phi,d}^2 - \log \sigma_{\phi,d}^2 - 1\big)}_{D_{\text{KL}}(q_\phi(z\mid x) \,\|\, \mathcal{N}(0, I))}$$
@@ -829,7 +829,7 @@ print(f"VAE trained in {time.time() - t0:.1f}s")
 """)
 
 # ==============================================================================
-# CELL 6: EXPERIMENT 1B — MODEL 2: AUTOREGRESSIVE MODEL (MASKED PIXELCNN)
+# CELL 6: EXPERIMENT 1B: MODEL 2: AUTOREGRESSIVE MODEL (MASKED PIXELCNN)
 # ==============================================================================
 add_markdown(r"""
 ### 2.2 Model 2: Autoregressive Generative Model (Masked PixelCNN)
@@ -928,7 +928,7 @@ print(f"PixelCNN trained in {time.time() - t0:.1f}s")
 """)
 
 # ==============================================================================
-# CELL 7: EXPERIMENT 1B — MODEL 3: GENERATIVE ADVERSARIAL NETWORK (DCGAN)
+# CELL 7: EXPERIMENT 1B: MODEL 3: GENERATIVE ADVERSARIAL NETWORK (DCGAN)
 # ==============================================================================
 add_markdown(r"""
 ### 2.3 Model 3: Generative Adversarial Network (DCGAN)
@@ -1033,7 +1033,7 @@ print(f"DCGAN trained in {time.time() - t0:.1f}s")
 """)
 
 # ==============================================================================
-# CELL 8: EXPERIMENT 1B — MODEL 4: DIFFUSION MODEL (MINI-DDPM)
+# CELL 8: EXPERIMENT 1B: MODEL 4: DIFFUSION MODEL (MINI-DDPM)
 # ==============================================================================
 add_markdown(r"""
 ### 2.4 Model 4: Denoising Diffusion Probabilistic Model (Mini-DDPM)
@@ -1207,7 +1207,7 @@ print(f"Mini-DDPM trained in {time.time() - t0:.1f}s")
 """)
 
 # ==============================================================================
-# CELL 9: EXPERIMENT 1C-1 — TRAINING DYNAMICS & VISUAL SAMPLE QUALITY COMPARISON
+# CELL 9: EXPERIMENT 1C-1: TRAINING DYNAMICS & VISUAL SAMPLE QUALITY COMPARISON
 # ==============================================================================
 add_markdown(r"""
 ---
@@ -1262,7 +1262,7 @@ plt.show()
 """)
 
 # ==============================================================================
-# CELL 10: EXPERIMENT 1C-2 — SIDE-BY-SIDE VISUAL SAMPLE GRIDS & EDGE SHARPNESS
+# CELL 10: EXPERIMENT 1C-2: SIDE-BY-SIDE VISUAL SAMPLE GRIDS & EDGE SHARPNESS
 # ==============================================================================
 add_markdown(r"""
 ### 3.2 Side-by-Side Visual Comparison Grid & Edge Sharpness Profiles
@@ -1327,7 +1327,7 @@ plt.show()
 """)
 
 # ==============================================================================
-# CELL 11: EXPERIMENT 1C-3 — QUANTITATIVE SCORECARD & MODE COVERAGE HISTOGRAMS
+# CELL 11: EXPERIMENT 1C-3: QUANTITATIVE SCORECARD & MODE COVERAGE HISTOGRAMS
 # ==============================================================================
 add_markdown(r"""
 ### 3.3 Quantitative Quality Evaluation & Mode Coverage Histograms ($N = 512$ Samples per Model)
@@ -1439,7 +1439,7 @@ for st in all_stats:
 """)
 
 # ==============================================================================
-# CELL 12: EXPERIMENT 1C-4 — PLOTTING MODE COVERAGE & THE GENERATIVE TRILEMMA CHART
+# CELL 12: EXPERIMENT 1C-4: PLOTTING MODE COVERAGE & THE GENERATIVE TRILEMMA CHART
 # ==============================================================================
 add_code(r"""
 # Plot 1: Class Distribution Histograms (Visualizing Mode Coverage vs. GAN Mode Collapse/Imbalance)
@@ -1500,7 +1500,7 @@ plt.show()
 """)
 
 # ==============================================================================
-# CELL 13: EXPERIMENT 1D — PRETRAINED RGB BASELINES BENCHMARK (CIFAR-10 32x32)
+# CELL 13: EXPERIMENT 1D: PRETRAINED RGB BASELINES BENCHMARK (CIFAR-10 32x32)
 # ==============================================================================
 add_markdown(r"""
 ---
@@ -1615,7 +1615,7 @@ plt.show()
 """)
 
 # ==============================================================================
-# CELL 14: TASK 4 BONUS — PRETRAINED DDPM REVERSE TRAJECTORY (x_t vs x_0_hat)
+# CELL 14: TASK 4 BONUS: PRETRAINED DDPM REVERSE TRAJECTORY (x_t vs x_0_hat)
 # ==============================================================================
 add_markdown(r"""
 ### 4.2 Task 4 Bonus: Reverse Denoising Process on Pretrained DDPM
@@ -1657,7 +1657,7 @@ plt.show()
 """)
 
 # ==============================================================================
-# CELL 15: TASK 6 EMPIRICAL BENCHMARK — PIXEL DDPM VS LATENT LDM ON 256x256
+# CELL 15: TASK 6 EMPIRICAL BENCHMARK: PIXEL DDPM VS LATENT LDM ON 256x256
 # ==============================================================================
 add_markdown(r"""
 ### 4.3 Task 6 Empirical Head-to-Head Benchmark: Pixel-Space DDPM vs. Latent Diffusion (LDM) on $256 \times 256$ CelebA-HQ
@@ -1752,7 +1752,7 @@ plt.show()
 """)
 
 # ==============================================================================
-# SECTION 5: TASKS 5 & 6 — FOUR CORE LATENT DIFFUSION EXPERIMENTS (COLAB A100)
+# SECTION 5: TASKS 5 & 6: FOUR CORE LATENT DIFFUSION EXPERIMENTS (COLAB A100)
 # ==============================================================================
 add_markdown(r"""
 ---
@@ -1880,7 +1880,7 @@ print(f"32x32 FID/Prompt Evaluator CNN Test Accuracy: {acc32:.2f}%")
 """)
 
 # ==============================================================================
-# CELL 5.1: EXPERIMENT 1 — VAE COMPRESSION FIDELITY TEST
+# CELL 5.1: EXPERIMENT 1: VAE COMPRESSION FIDELITY TEST
 # ==============================================================================
 add_markdown(r"""
 ### 5.1 Experiment 1: VAE Compression Fidelity Test ($\mathbf{x}$ vs. $\hat{\mathbf{x}} = D(E(\mathbf{x}))$)
@@ -2069,13 +2069,13 @@ for b, f_v in zip(bars_fid, fid_e1_vals):
     ax2.text(b.get_x() + b.get_width()/2, f_v + max(fid_e1_vals)*0.03, f"FID = {f_v:.2f}", ha="center", fontsize=8.5, fontweight="bold")
 ax2.set_ylim(0, max(fid_e1_vals) * 1.22)
 
-plt.suptitle("Experiment 1 — VAE Compression Fidelity Test: Quantifying Pixel-to-Latent Information Loss ($\\mathbf{x}$ vs. $\\hat{\\mathbf{x}} = D(E(\\mathbf{x}))$)", fontsize=12, fontweight="bold", y=1.02)
+plt.suptitle("Experiment 1: VAE Compression Fidelity Test - Quantifying Pixel-to-Latent Information Loss ($\\mathbf{x}$ vs. $\\hat{\\mathbf{x}} = D(E(\\mathbf{x}))$)", fontsize=12, fontweight="bold", y=1.02)
 plt.savefig(os.path.join(FIG_DIR, "task5_exp1_vae_compression_fidelity.png"), bbox_inches="tight")
 plt.show()
 """)
 
 # ==============================================================================
-# CELL 5.2: EXPERIMENT 2 — LATENT VS. PIXEL SPACE TRAINING EFFICIENCY
+# CELL 5.2: EXPERIMENT 2: LATENT VS. PIXEL SPACE TRAINING EFFICIENCY
 # ==============================================================================
 add_markdown(r"""
 ### 5.2 Experiment 2: Latent vs. Pixel Space Training Efficiency ($32 \times 32$ Pixel U-Net vs. $8 \times 8$ Latent U-Net)
@@ -2083,7 +2083,7 @@ add_markdown(r"""
 * **Protocol:**
   We construct two **architecturally identical U-Nets** (`BenchmarkUNet` with identical channel widths $C=64$, identical ResBlocks, and identical Self-Attention blocks):
   * **Model A (Pixel-Space Diffusion):** Trained directly on **$32 \times 32$ pixel images** ($1,024$ spatial locations per channel).
-  * **Model B (Latent-Space Diffusion — LDM):** Trained on **$8 \times 8$ pre-encoded VAE latent vectors** ($64$ spatial locations per channel — a **$16\times$ smaller spatial grid**).
+  * **Model B (Latent-Space Diffusion, LDM):** Trained on **$8 \times 8$ pre-encoded VAE latent vectors** ($64$ spatial locations per channel, a **$16\times$ smaller spatial grid**).
   * We measure **Wall-Clock Training Time per Epoch (s/epoch $\downarrow$)**, **Training Throughput (img/s $\uparrow$)**, and **Peak Training Activation VRAM (MB $\downarrow$)**.
 """)
 
@@ -2253,7 +2253,7 @@ axes[2].set_title("(c) Convergence vs. Wall-Clock Time\nModel B Finishes All 6 E
 axes[2].legend(fontsize=8.5, loc="upper right")
 axes[2].grid(alpha=0.3)
 
-plt.suptitle("Experiment 2 — Latent vs. Pixel Space Training Efficiency: Identical U-Nets on $32\\times 32$ Pixels vs. $8\\times 8$ Latents", fontsize=12, fontweight="bold", y=1.02)
+plt.suptitle("Experiment 2: Latent vs. Pixel Space Training Efficiency - Identical U-Nets on $32\\times 32$ Pixels vs. $8\\times 8$ Latents", fontsize=12, fontweight="bold", y=1.02)
 plt.tight_layout()
 plt.savefig(os.path.join(FIG_DIR, "task6_exp2_latent_vs_pixel_training_efficiency.png"), bbox_inches="tight")
 plt.show()
@@ -2263,7 +2263,7 @@ if torch.cuda.is_available(): torch.cuda.empty_cache()
 """)
 
 # ==============================================================================
-# CELL 5.3: EXPERIMENT 3 — LATENT INTERPOLATION / LATENT WALK
+# CELL 5.3: EXPERIMENT 3: LATENT INTERPOLATION / LATENT WALK
 # ==============================================================================
 add_markdown(r"""
 ### 5.3 Experiment 3: Latent Interpolation / Latent Walk ($\mathbf{z}(\lambda) = (1-\lambda)\mathbf{z}^{(A)} + \lambda\mathbf{z}^{(B)}$)
@@ -2343,13 +2343,13 @@ l2, lb2 = ax1_twin.get_legend_handles_labels()
 ax1.legend(l1 + l2, lb1 + lb2, loc="center right", fontsize=7.8, framealpha=0.92)
 ax1.grid(alpha=0.3)
 
-plt.suptitle("Experiment 3 — Latent Interpolation / Latent Walk: Proving the VAE Latent Space is Smooth, Continuous & Free of Dead Zones", fontsize=12, fontweight="bold", y=1.02)
+plt.suptitle("Experiment 3: Latent Interpolation / Latent Walk - Proving the VAE Latent Space is Smooth, Continuous & Free of Dead Zones", fontsize=12, fontweight="bold", y=1.02)
 plt.savefig(os.path.join(FIG_DIR, "task5_exp3_latent_interpolation_walk.png"), bbox_inches="tight")
 plt.show()
 """)
 
 # ==============================================================================
-# CELL 5.4: EXPERIMENT 4 — CLASSIFIER-FREE GUIDANCE (CFG) SCALING TEST
+# CELL 5.4: EXPERIMENT 4: CLASSIFIER-FREE GUIDANCE (CFG) SCALING TEST
 # ==============================================================================
 add_markdown(r"""
 ### 5.4 Experiment 4: Classifier-Free Guidance (CFG) Scaling Test ($\alpha \in \{1.0, 3.0, 7.5, 15.0\}$)
@@ -2521,7 +2521,7 @@ ax5.set_title("Quality vs. Oversaturation\n$\\alpha=15.0$ Causes Artifact Spike"
 l1, lb1 = ax5.get_legend_handles_labels(); l2, lb2 = ax5_twin.get_legend_handles_labels()
 ax5.legend(l1 + l2, lb1 + lb2, loc="upper left", fontsize=7.4); ax5.grid(axis="y", alpha=0.3)
 
-plt.suptitle("Experiment 4 — Classifier-Free Guidance (CFG) Scaling Test ($\\tilde{\\epsilon}_\\theta = \\epsilon_{\\mathrm{uncond}} + \\alpha(\\epsilon_{\\mathrm{cond}} - \\epsilon_{\\mathrm{uncond}})$ for $\\alpha \\in \\{1.0, 3.0, 7.5, 15.0\\}$)", fontsize=11.8, fontweight="bold", y=1.03)
+plt.suptitle("Experiment 4: Classifier-Free Guidance (CFG) Scaling Test ($\\tilde{\\epsilon}_\\theta = \\epsilon_{\\mathrm{uncond}} + \\alpha(\\epsilon_{\\mathrm{cond}} - \\epsilon_{\\mathrm{uncond}})$ for $\\alpha \\in \\{1.0, 3.0, 7.5, 15.0\\}$)", fontsize=11.8, fontweight="bold", y=1.03)
 plt.savefig(os.path.join(FIG_DIR, "task5_exp4_cfg_scaling_test.png"), bbox_inches="tight")
 plt.show()
 """)
@@ -2534,7 +2534,7 @@ add_markdown(r"""
 ## 6. Summary of Experimental Findings for Seminar Report (Tasks 1, 4, 5 & 6)
 
 1. **Discriminative vs. Generative Models (Experiment 1A):**
-   * Our 2D manifold experiment and MNIST CNN ($98.8\%$ accuracy) demonstrate that **Discriminative Models** $p_\phi(y \mid x)$ only partition space with decision boundaries—they assign $>99\%$ confidence to empty out-of-distribution regions and cannot synthesize data.
+   * Our 2D manifold experiment and MNIST CNN ($98.8\%$ accuracy) demonstrate that **Discriminative Models** $p_\phi(y \mid x)$ only partition space with decision boundaries; they assign $>99\%$ confidence to empty out-of-distribution regions and cannot synthesize data.
    * **Generative Models** $p_\theta(x)$ learn the actual data distribution and map random noise into valid samples on the data manifold.
 2. **Generative Paradigms on MNIST & Pretrained Natural RGB Baselines (Experiments 1B, 1C & 1D):**
    * **Conv-VAE:** Fastest sampling ($\sim 7\text{ ms}$) and smooth mode coverage, but produces **blurry pastel samples** when sampling from prior $z \sim \mathcal{N}(0, I)$ because single-step decoding averages over stroke uncertainty.

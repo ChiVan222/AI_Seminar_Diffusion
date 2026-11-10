@@ -1,4 +1,4 @@
-# Diffusion & Latent Diffusion Models: Comprehensive Theory & Seminar Guide (CS420 — S06)
+# Diffusion & Latent Diffusion Models: Comprehensive Theory & Seminar Guide (CS420: S06)
 **Bridging CS 182 Latent Variable Models (VAEs, Flows, GANs) to DDPM (Ho et al., 2020) & Latent Diffusion (Rombach et al., 2022)**
 
 ---
@@ -41,7 +41,7 @@
 ## 1. Guiding Question & The Connection to CS 182 VAEs
 
 ### 1.1 Guiding Question: How Can Learning to Remove Noise Generate New Images?
-In generative modeling, our goal is to transform samples from a simple, known prior distribution—standard isotropic Gaussian noise $\mathcal{N}(\mathbf{0}, \mathbf{I})$—into complex, high-dimensional samples from the true data distribution $p_{\text{data}}(x)$.
+In generative modeling, our goal is to transform samples from a simple, known prior distribution (standard isotropic Gaussian noise $\mathcal{N}(\mathbf{0}, \mathbf{I})$) into complex, high-dimensional samples from the true data distribution $p_{\text{data}}(x)$.
 
 * **Why 1-Step Generation Struggles:** A Variational Autoencoder (VAE) attempts to map random Gaussian noise $z \sim \mathcal{N}(\mathbf{0}, \mathbf{I})$ to a clean image $x$ in a **single deterministic/Gaussian decoder pass** $p_\theta(x \mid z)$. Because a single Gaussian step cannot easily model sharp, multi-modal transitions in pixel space, the decoder averages over possible outcomes and outputs blurry images.
 * **The Diffusion Insight (Iterative Refinement):** Instead of jumping from pure noise to a complex image in one giant leap, **Diffusion Models** break the transformation into $T$ tiny, tractable steps ($T \approx 1000$):
@@ -90,7 +90,7 @@ In modern generative AI, models face the **Generative Learning Trilemma** (Xiao 
 
 | Model Family | Core Mechanism & Density Type | Sample Quality (Sharpness) | Mode Coverage & Training Stability | Sampling / Generation Speed | Key Limitations |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Autoregressive Models**<br>*(PixelRNN, PixelCNN, ImageGPT)* | **Explicit Exact Likelihood:** Chain rule $p(x) = \prod_{i=1}^n p(x^{(i)} \mid x^{(<i)})$ | **High** (No blurry Gaussian averaging across pixels) | **Full Mode Coverage** & very stable MLE training | **Extremely Slow** ($\mathcal{O}(n)$ sequential forward passes—one per pixel!) | Impractical for high-res images ($512 \times 512 = 262,144$ sequential steps); no global latent vector $z$. |
+| **Autoregressive Models**<br>*(PixelRNN, PixelCNN, ImageGPT)* | **Explicit Exact Likelihood:** Chain rule $p(x) = \prod_{i=1}^n p(x^{(i)} \mid x^{(<i)})$ | **High** (No blurry Gaussian averaging across pixels) | **Full Mode Coverage** & very stable MLE training | **Extremely Slow** ($\mathcal{O}(n)$ sequential forward passes, one per pixel!) | Impractical for high-res images ($512 \times 512 = 262,144$ sequential steps); no global latent vector $z$. |
 | **Variational Autoencoders (VAEs)** | **Explicit Approximate Likelihood (ELBO):** Encoder $q_\phi(z\mid x)$ + Decoder $p_\theta(x\mid z)$ | **Low / Blurry** (1-step Gaussian decoder hedges bets across modes under $L_2$ loss) | **Full Mode Coverage** & stable optimization | **Very Fast** ($1$ forward pass through Decoder) | Posterior collapse or prior holes; blurry high-frequency textures. |
 | **Normalizing Flows**<br>*(NICE, RealNVP, Glow)* | **Explicit Exact Likelihood:** Invertible bijection $x = f_\theta(z)$ with tractable Jacobian $\det J$ | **Moderate** | **Full Mode Coverage** & exact log-likelihood | **Fast** ($1$ forward pass through $f_\theta$) | Latent space cannot compress dimensionality ($\dim(z) = \dim(x)$); requires huge memory/parameter counts. |
 | **Generative Adversarial Networks (GANs)**<br>*(DCGAN, WGAN, StyleGAN)* | **Implicit Density (Likelihood-Free):** Minimax game between Generator $G_\theta(z)$ and Discriminator $D_\phi(x)$ | **Extremely High / Razor Sharp** (Mode-seeking behavior avoids averaging modes) | **Poor Mode Coverage (Mode Collapse)** & unstable adversarial dynamics (vanishing gradients, oscillation) | **Very Fast** ($1$ forward pass through $G_\theta$) | No encoder or likelihood $p_\theta(x)$; drops minority modes of the dataset; hard to tune hyperparameters. |
@@ -134,17 +134,17 @@ A crucial question is: *Why do we attenuate the previous image $x_{t-1}$ by $\sq
 ### 3.3 The $\beta_t$ Variance Schedule: Purpose & Which Schedule to Choose for Which Data
 
 #### 1. The Three Core Purposes of $\beta_t$ Scheduling
-The variance schedule $\{\beta_t\}_{t=1}^T$ is not just an arbitrary list of numbers—it performs three mathematical jobs:
-1. **Job 1 — Keeping the Reverse Step $q(x_{t-1} \mid x_t)$ Gaussian (Feller's Theorem, 1949):**
+The variance schedule $\{\beta_t\}_{t=1}^T$ is not just an arbitrary list of numbers; it performs three mathematical jobs:
+1. **Job 1: Keeping the Reverse Step $q(x_{t-1} \mid x_t)$ Gaussian (Feller's Theorem, 1949):**
    * Our reverse model $p_\theta(x_{t-1} \mid x_t) = \mathcal{N}(\mu_\theta, \sigma_t^2\mathbf{I})$ assumes each reverse step is a **single Gaussian**. By Feller's theorem, the reverse of a Gaussian forward step is only Gaussian when the step size $\beta_t \ll 1$.
    * **Why $\beta_1$ must be tiny ($10^{-4}$) while $\beta_T$ can be $200\times$ larger ($0.02$):**
      * **Near $t = 1$ (Sharp Data Manifold):** The clean image distribution $q(x_0)$ is razor-sharp and highly non-Gaussian. Even a moderate noise step would mix multiple distinct images, making the true reverse distribution $q(x_0 \mid x_1)$ multi-modal. Thus $\beta_1$ must be tiny ($\approx 10^{-4}$) so the reverse step is purely local and Gaussian.
      * **Near $t = T$ (Smooth Noise Manifold):** By large $t$, $q(x_t)$ has already been smoothed into a wide bell curve close to $\mathcal{N}(\mathbf{0}, \mathbf{I})$. Because the density is already smooth and Gaussian, we can take much larger steps ($\beta_T \approx 0.02$) without breaking the Gaussian approximation!
-2. **Job 2 — Guaranteeing Zero Signal Leakage at $t = T$ ($\bar{\alpha}_T \approx 0$):**
+2. **Job 2: Guaranteeing Zero Signal Leakage at $t = T$ ($\bar{\alpha}_T \approx 0$):**
    * At inference time, we start from pure standard normal noise $x_T \sim \mathcal{N}(\mathbf{0}, \mathbf{I})$.
    * Therefore, the cumulative product $\bar{\alpha}_T = \prod_{t=1}^T (1 - \beta_t) \approx \exp\big(-\sum_{t=1}^T \beta_t\big)$ **must decay to $\approx 0$** by step $T$.
    * *Rule when changing $T$:* Because $\bar{\alpha}_T \approx \exp(-\sum_{t=1}^T \beta_t)$, if you use fewer total steps (e.g., $T = 300$ instead of $T = 1000$), you **must scale $\beta_{\max}$ up** proportionally (e.g., $\beta_{300} \approx 0.03\text{–}0.05$) so the sum $\sum_{t=1}^T \beta_t$ stays around $\sim 10$ and $\bar{\alpha}_T$ still reaches $\approx 0$!
-3. **Job 3 — Pacing Frequency Destruction Across Scales (Coarse-to-Fine Hierarchy):**
+3. **Job 3: Pacing Frequency Destruction Across Scales (Coarse-to-Fine Hierarchy):**
    * Natural images follow a $1/f^2$ power law: **high-frequency details** (edges, fine textures) have tiny power and are erased by tiny noise at small $t$ ($\beta_t \sim 10^{-4}$), whereas **low-frequency global structures** (overall pose, large color regions) span hundreds of correlated pixels and require huge cumulative noise ($1 - \bar{\alpha}_t \to 1$) to erase.
    * A well-designed schedule spaces out the Signal-to-Noise Ratio $\text{SNR}(t) = \frac{\bar{\alpha}_t}{1 - \bar{\alpha}_t}$ so the U-Net spends roughly equal steps learning fine textures (small $t$), object parts (medium $t$), and global layout (large $t$).
 
@@ -189,7 +189,7 @@ $$\boxed{q(x_t \mid x_0) = \mathcal{N}\big(x_t; \, \sqrt{\bar{\alpha}_t}\, x_0, 
 
 #### Why $q(x_{t-1} \mid x_t)$ Alone is Intractable, But $q(x_{t-1} \mid x_t, x_0)$ is Tractable!
 To generate images, we want to reverse the chain and sample from $q(x_{t-1} \mid x_t)$.
-* **Without knowing $x_0$:** Computing $q(x_{t-1} \mid x_t) = \frac{q(x_t \mid x_{t-1}) q(x_{t-1})}{q(x_t)}$ requires integrating over the unknown data distribution $q(x_0)$ ($q(x_t) = \int q(x_t \mid x_0)q(x_0)dx_0$), which is intractable—for the exact same reason $\log p_\theta(x)$ is intractable in a VAE!
+* **Without knowing $x_0$:** Computing $q(x_{t-1} \mid x_t) = \frac{q(x_t \mid x_{t-1}) q(x_{t-1})}{q(x_t)}$ requires integrating over the unknown data distribution $q(x_0)$ ($q(x_t) = \int q(x_t \mid x_0)q(x_0)dx_0$), which is intractable, for the exact same reason $\log p_\theta(x)$ is intractable in a VAE!
 * **Conditioned on $x_0$ (During Training):** If we *also* condition on the clean training image $x_0$, then by Bayes' rule and the Markov property, $q(x_{t-1} \mid x_t, x_0)$ is completely free of $q(x_0)$ and is just a product/ratio of three known Gaussians:
   $$q(x_{t-1} \mid x_t, x_0) = \frac{q(x_t \mid x_{t-1}, x_0)\, q(x_{t-1} \mid x_0)}{q(x_t \mid x_0)} = \frac{q(x_t \mid x_{t-1})\, q(x_{t-1} \mid x_0)}{q(x_t \mid x_0)}$$
   Completing the square in the Gaussian exponents ([Ho et al., 2020, Equations 6 & 7](file:///D:/AI/Diffusion/2006.11239v2.pdf)) shows that this forward posterior is an **exact tractable Gaussian**:
@@ -293,21 +293,21 @@ $$p_{\text{data}}(x_0) = \frac{1}{2}\delta(x_0 + 1) + \frac{1}{2}\delta(x_0 - 1)
    $$\boxed{\mu_\theta^*(x_t, t) = \underbrace{\frac{\sqrt{\bar{\alpha}_{t-1}}\beta_t}{1 - \bar{\alpha}_t}\, \tanh\left(\frac{\sqrt{\bar{\alpha}_t}}{1 - \bar{\alpha}_t}\, x_t\right)}_{\text{Mode-Splitting Push toward }\pm 1} + \underbrace{\frac{\sqrt{\alpha_t}(1 - \bar{\alpha}_{t-1})}{1 - \bar{\alpha}_t}\, x_t}_{\text{Contraction Pull toward }0}}$$
 
 2. **Why Omitting $+\sigma_t z$ Traps or Pulls $x_t$ Into the Mean $0$:**
-   * **At the mean $x_t = 0$:** $\tanh(0) = 0 \implies \mu_\theta^*(0, t) = 0$. Without $+\sigma_t z$, $x_t = 0$ is a **fixed point**—it stays stuck at the nonexistent average image $x_0 = 0$ forever!
+   * **At the mean $x_t = 0$:** $\tanh(0) = 0 \implies \mu_\theta^*(0, t) = 0$. Without $+\sigma_t z$, $x_t = 0$ is a **fixed point**; it stays stuck at the nonexistent average image $x_0 = 0$ forever!
    * **During all early high-noise steps ($t \approx T \to T/2$, where $\bar{\alpha}_t \approx 0$):** Because $\bar{\alpha}_t \ll 1$, the mode-splitting $\tanh$ term is nearly zero ($\frac{\sqrt{\bar{\alpha}_t}\beta_t}{1-\bar{\alpha}_t} \approx 0$), while the second term equals $\approx \sqrt{\alpha_t}\, x_t$ (with $\sqrt{\alpha_t} < 1$).
    * That means **during the first half of reverse sampling, the deterministic mean $\mu_\theta^*(x_t, t) \approx \sqrt{\alpha_t}\, x_t$ actively contracts every point INWARD toward the mean $0$!** If you do not add $+\sigma_t z$, every sample gets shrunk by $\prod \sqrt{\alpha_t}$ right toward $x_t \approx 0$ *before* $\bar{\alpha}_t$ ever becomes large enough for the $\tanh$ term to turn on!
 
 3. **Step-by-Step: How $+\sigma_t z$ Moves Us AWAY from the Mean $0$ and Triggers the Split to $-1$ or $+1$:**
-   * **Role 1 — Breaking the $x_t = 0$ Deadlock:** Suppose $x_t = 0$ (dead center on the blurry average, where $\mu_\theta^*(0, t) = 0$). Adding $+\sigma_t z$ (say, $+0.25$) physically moves $x_{t-1}$ **away from the mean $0$** to $x_{t-1} = +0.25$.
-   * **Role 2 — Amplifying via Positive Feedback on the Next Step:** Now that $x_{t-1} = +0.25 > 0$, on step $t-1$ the $\tanh$ term wakes up:
+   * **Role 1: Breaking the $x_t = 0$ Deadlock:** Suppose $x_t = 0$ (dead center on the blurry average, where $\mu_\theta^*(0, t) = 0$). Adding $+\sigma_t z$ (say, $+0.25$) physically moves $x_{t-1}$ **away from the mean $0$** to $x_{t-1} = +0.25$.
+   * **Role 2: Amplifying via Positive Feedback on the Next Step:** Now that $x_{t-1} = +0.25 > 0$, on step $t-1$ the $\tanh$ term wakes up:
      $$\mathbb{E}[x_0 \mid x_{t-1} = +0.25] = \tanh\left(\frac{\sqrt{\bar{\alpha}_{t-1}}}{1 - \bar{\alpha}_{t-1}} \times 0.25\right) > 0$$
      Because $x_{t-1} > 0$, the posterior average $\mathbb{E}[x_0 \mid x_{t-1}]$ is now biased toward Mode B ($+1$). This causes $\mu_\theta^*(x_{t-1}, t-1)$ to push $x_{t-2}$ even *further* toward $+1$ (say $+0.55$), which makes $\tanh(\cdot)$ even closer to $+1.0$ on the step after that, rapidly locking into the sharp mode $x_0 = +1$!
-   * **Role 3 — Keeping $x_t$ Away from $0$ Until the Vector Field Itself Flips Direction:** In the early steps ($t \approx T$) when $\mu_\theta^*(x_t, t) \approx \sqrt{\alpha_t}\,x_t$ is trying to shrink $x_t \to 0$, the random kicks $+\sigma_t z$ replenish the variance $(\sqrt{\alpha_t})^2(1) + \beta_t = 1$ so that $x_t$ stays at distance $\sim \mathcal{O}(1)$ away from $0$ until $\bar{\alpha}_t$ grows large enough for $\tanh\left(\frac{\sqrt{\bar{\alpha}_t}}{1-\bar{\alpha}_t}x_t\right) \to \pm 1$ to snap the trajectory into one of the true modes!
+   * **Role 3: Keeping $x_t$ Away from $0$ Until the Vector Field Itself Flips Direction:** In the early steps ($t \approx T$) when $\mu_\theta^*(x_t, t) \approx \sqrt{\alpha_t}\,x_t$ is trying to shrink $x_t \to 0$, the random kicks $+\sigma_t z$ replenish the variance $(\sqrt{\alpha_t})^2(1) + \beta_t = 1$ so that $x_t$ stays at distance $\sim \mathcal{O}(1)$ away from $0$ until $\bar{\alpha}_t$ grows large enough for $\tanh\left(\frac{\sqrt{\bar{\alpha}_t}}{1-\bar{\alpha}_t}x_t\right) \to \pm 1$ to snap the trajectory into one of the true modes!
 
 #### 4. Why Doesn't the $L_2$-Trained Vector Field at $x_{t-1}$ Always Point Toward the Global Mean Image?
 A very subtle question is: *"Since we train with $L_2$ loss across the entire dataset, shouldn't the learned vector field at ANY position $x_{t-1}$ always point toward the global mean image $\mathbb{E}[x_0] = 0$?"*
 
-**No!** Because the U-Net takes $(x_t, t)$ as input, $L_2$ loss does **not** average over all training images equally—it only averages over the training images whose forward noise cloud $q(x_t \mid x_0^{(i)}) = \mathcal{N}(\sqrt{\bar{\alpha}_t}x_0^{(i)}, (1 - \bar{\alpha}_t)\mathbf{I})$ **actually reaches the coordinate $x_t$ at timestep $t$**:
+**No!** Because the U-Net takes $(x_t, t)$ as input, $L_2$ loss does **not** average over all training images equally; it only averages over the training images whose forward noise cloud $q(x_t \mid x_0^{(i)}) = \mathcal{N}(\sqrt{\bar{\alpha}_t}x_0^{(i)}, (1 - \bar{\alpha}_t)\mathbf{I})$ **actually reaches the coordinate $x_t$ at timestep $t$**:
 $$\mathbb{E}[x_0 \mid x_t] = \sum_{i=1}^N w_i(x_t, t)\, x_0^{(i)}, \qquad \text{where } w_i(x_t, t) = \frac{\exp\left(-\frac{\|x_t - \sqrt{\bar{\alpha}_t}x_0^{(i)}\|^2}{2(1 - \bar{\alpha}_t)}\right)}{\sum_{j=1}^N \exp\left(-\frac{\|x_t - \sqrt{\bar{\alpha}_t}x_0^{(j)}\|^2}{2(1 - \bar{\alpha}_t)}\right)}$$
 
 Look at how the vector field $\mu_\theta^*(x_t, t) - x_t$ changes completely across $t$:
@@ -333,7 +333,7 @@ Look at how the vector field $\mu_\theta^*(x_t, t) - x_t$ changes completely acr
 ```
 **Summary of the Synergy:**
 * At **large $t$**, the vector field *does* pull toward the global mean $0$. The noise $+\sigma_t z$ fights this inward pull and keeps scattering $x_t$ away from $0$.
-* Then, as **$t$ decreases**, the training clouds around Mode A and Mode B shrink and separate. Because $+\sigma_t z$ kept our sample away from $0$ (say at $x_t = +0.5$), our sample now sits in a region where Mode A never visits during training—so the $L_2$ vector field at $x_t = +0.5$ **flips direction** and pulls **away from $0$ and straight into Mode B ($+1$)**!
+* Then, as **$t$ decreases**, the training clouds around Mode A and Mode B shrink and separate. Because $+\sigma_t z$ kept our sample away from $0$ (say at $x_t = +0.5$), our sample now sits in a region where Mode A never visits during training, so the $L_2$ vector field at $x_t = +0.5$ **flips direction** and pulls **away from $0$ and straight into Mode B ($+1$)**!
 
 ---
 
@@ -342,8 +342,8 @@ This question has **two distinct answers** depending on whether we are doing **U
 
 | Scenario | What Happens When $z$ Points Toward B? | Why It Works Mathematically |
 | :--- | :--- | :--- |
-| **1. Unconditional Sampling at Early Steps ($t \approx T \to 600$)**<br>*(No prompt given; $x_t$ is still pure ambiguous static)* | **The sample simply becomes Image B!** | In *unconditional* generation, you haven't asked the model for A or B—you only asked for a valid random sample from $p_{\text{data}}(x)$. On 50% of runs, early $z$ kicks push into A's basin (generating a sharp A); on the other 50% of runs, early $z$ kicks push into B's basin (generating a sharp B). That is *how* unconditional diffusion achieves full mode diversity! |
-| **2. Unconditional Sampling at Middle/Late Steps ($t \approx 400 \to 1$)**<br>*(Sample has already entered A's basin, e.g., a half-formed dog, and a random kick $z$ points toward B)* | **It stays Mode A! The deterministic drift $\mu_\theta$ immediately pulls it back to A.** | **Two reasons a late kick cannot flip A into B:**<br>1. **Exponential Bayesian Lock-In:** Once $x_t$ is slightly closer to A than B, the posterior probability $p(x_0 = A \mid x_t)$ jumps to $\approx 99.99\%$ while $p(x_0 = B \mid x_t) \approx 0.01\%$ (because Gaussian likelihood $\exp(-\|x_t - \sqrt{\bar{\alpha}_t}x_0\|^2 / 2(1-\bar{\alpha}_t))$ decays exponentially with distance as $1-\bar{\alpha}_t \to 0$). Thus $\mathbb{E}[x_0 \mid x_t] \approx 1.0 \cdot A + 0.0 \cdot B = A$—so the deterministic vector $\mu_\theta(x_t, t)$ acts like a steep gravity well pulling straight back to A!<br>2. **Shrinking Noise Schedule ($\sigma_t \to 0$):** As $t \to 1$, $\sigma_t \approx \sqrt{\beta_t}$ shrinks from $0.141$ (at $t=1000$) down to $0.01$ (at $t=1$). Late kicks are **too tiny** to jump over the high-energy barrier between Mode A and Mode B; they only randomize **fine local textures within Mode A** (e.g., individual fur strands or stroke micro-variations). |
+| **1. Unconditional Sampling at Early Steps ($t \approx T \to 600$)**<br>*(No prompt given; $x_t$ is still pure ambiguous static)* | **The sample simply becomes Image B!** | In *unconditional* generation, you haven't asked the model for A or B; you only asked for a valid random sample from $p_{\text{data}}(x)$. On 50% of runs, early $z$ kicks push into A's basin (generating a sharp A); on the other 50% of runs, early $z$ kicks push into B's basin (generating a sharp B). That is *how* unconditional diffusion achieves full mode diversity! |
+| **2. Unconditional Sampling at Middle/Late Steps ($t \approx 400 \to 1$)**<br>*(Sample has already entered A's basin, e.g., a half-formed dog, and a random kick $z$ points toward B)* | **It stays Mode A! The deterministic drift $\mu_\theta$ immediately pulls it back to A.** | **Two reasons a late kick cannot flip A into B:**<br>1. **Exponential Bayesian Lock-In:** Once $x_t$ is slightly closer to A than B, the posterior probability $p(x_0 = A \mid x_t)$ jumps to $\approx 99.99\%$ while $p(x_0 = B \mid x_t) \approx 0.01\%$ (because Gaussian likelihood $\exp(-\|x_t - \sqrt{\bar{\alpha}_t}x_0\|^2 / 2(1-\bar{\alpha}_t))$ decays exponentially with distance as $1-\bar{\alpha}_t \to 0$). Thus $\mathbb{E}[x_0 \mid x_t] \approx 1.0 \cdot A + 0.0 \cdot B = A$, so the deterministic vector $\mu_\theta(x_t, t)$ acts like a steep gravity well pulling straight back to A!<br>2. **Shrinking Noise Schedule ($\sigma_t \to 0$):** As $t \to 1$, $\sigma_t \approx \sqrt{\beta_t}$ shrinks from $0.141$ (at $t=1000$) down to $0.01$ (at $t=1$). Late kicks are **too tiny** to jump over the high-energy barrier between Mode A and Mode B; they only randomize **fine local textures within Mode A** (e.g., individual fur strands or stroke micro-variations). |
 | **3. Conditional Sampling ($p_\theta(x_0 \mid y = \text{"A"})$)**<br>*(You explicitly want Mode A via class label or text prompt $y = A$)* | **Mode B is completely erased from the U-Net's drift from Step $t = T$!** | When you explicitly want A, you pass $y = A$ into the conditioned U-Net $\epsilon_\theta(x_t, t, y=A)$ (and amplify it with Classifier-Free Guidance $w > 1$). Now the U-Net predicts $\mathbb{E}[x_0 \mid x_t, \, \mathbf{y = A}]$, which averages **only over images in Class A**! Even if a random kick $z$ at $t=T$ pushes toward B's coordinates, the guided drift $\mu_\theta(x_t, t, y=A)$ points strongly toward A and overpowers the kick, dragging the trajectory into A's basin. *(Inside Class A, $+\sigma_t z$ still breaks symmetry between sub-modes $A_1, A_2, \dots$ so you get a sharp specific instance of A rather than the blurry average of all A's!)* |
 
 ---
@@ -377,12 +377,12 @@ flowchart LR
 
 #### Diagram 2: ASCII Signal Flow for Slides / Quick Reference
 ```text
-FORWARD PROCESS q(x_t | x_{t-1}) — Fixed Gaussian Noising (Left to Right):
+FORWARD PROCESS q(x_t | x_{t-1}): Fixed Gaussian Noising (Left to Right):
   ┌──────────┐   q(x_1|x_0)   ┌──────────┐         ┌──────────┐  q(x_t|x_{t-1}) ┌──────────┐         ┌──────────┐
   │ Clean x₀ │ ─────────────► │ Noisy x₁ │ ──...─► │ x_{t-1}  │ ──────────────► │   x_t    │ ──...─► │ Pure x_T │
   │  (Data)  │ ◄───────────── │          │ ◄─...── │          │ ◄────────────── │          │ ◄─...── │ ~ N(0,I) │
   └──────────┘  p_θ(x_0|x_1)  └──────────┘         └──────────┘ p_θ(x_{t-1}|x_t)└──────────┘         └──────────┘
-REVERSE PROCESS p_θ(x_{t-1} | x_t) — Learned U-Net Denoising (Right to Left, Driven by ε_θ(x_t, t))
+REVERSE PROCESS p_θ(x_{t-1} | x_t): Learned U-Net Denoising (Right to Left, Driven by ε_θ(x_t, t))
 ```
 
 ---
@@ -433,11 +433,11 @@ Let us trace a single 1-dimensional pixel ($D = 1$) through **Forward Noising**,
    * Variance schedule parameter at step $t = 1$: **$\beta_1 = 0.19$** *(chosen so $1 - \beta_1 = 0.81$ yields an exact rational square root $\sqrt{0.81} = 0.90$; note that in a 1000-step schedule $\beta_1 = 10^{-4}$, whereas in a 5-step toy schedule $\beta_1 = 0.19$ is realistic)*.
    * Sampled standard normal noise realization: **$\epsilon = -0.50$** drawn from $\epsilon \sim \mathcal{N}(0, 1)$.
 
-2. **Step 1 — Compute the Signal Scaling Factor $\sqrt{1 - \beta_1}$:**
+2. **Step 1: Compute the Signal Scaling Factor $\sqrt{1 - \beta_1}$:**
    $$\alpha_1 = 1 - \beta_1 = 1 - 0.19 = 0.81$$
    $$\sqrt{1 - \beta_1} = \sqrt{0.81} = \mathbf{0.90}$$
 
-3. **Step 2 — Compute the Conditional Distribution $q(x_1 \mid x_0 = 0.80)$:**
+3. **Step 2: Compute the Conditional Distribution $q(x_1 \mid x_0 = 0.80)$:**
    By Equation 1, $q(x_1 \mid x_0) = \mathcal{N}\big(\mu_1, \, \sigma_1^2\big)$ where:
    * **Mean (Stochastic Expectation):**
      $$\mu_1 = \mathbb{E}[x_1 \mid x_0 = 0.80] = \sqrt{1 - \beta_1}\, x_0 = 0.90 \times 0.80 = \mathbf{0.72}$$
@@ -446,7 +446,7 @@ Let us trace a single 1-dimensional pixel ($D = 1$) through **Forward Noising**,
    Thus:
    $$q(x_1 \mid x_0 = 0.80) = \mathcal{N}(0.72, \, 0.19)$$
 
-4. **Step 3 — Compute the Realized Noisy Pixel $x_1$ for $\epsilon = -0.50$:**
+4. **Step 3: Compute the Realized Noisy Pixel $x_1$ for $\epsilon = -0.50$:**
    Using the reparameterization formula $x_1 = \sqrt{1 - \beta_1}\,x_0 + \sqrt{\beta_1}\,\epsilon$:
    $$\begin{aligned}
    x_1 &= 0.72 + (0.43589 \times -0.50) \\
@@ -454,7 +454,7 @@ Let us trace a single 1-dimensional pixel ($D = 1$) through **Forward Noising**,
    &\approx \mathbf{0.5021}
    \end{aligned}$$
 
-5. **Step 4 — Interpret the Stochastic Expectation $\mathbb{E}[x_1 \mid x_0]$:**
+5. **Step 4: Interpret the Stochastic Expectation $\mathbb{E}[x_1 \mid x_0]$:**
    * Why is $\mathbb{E}[x_1 \mid x_0] = 0.72$ instead of $x_0 = 0.80$?
    * Taking the expectation over all possible random draws of $\epsilon \sim \mathcal{N}(0, 1)$ (where $\mathbb{E}[\epsilon] = 0$):
      $$\mathbb{E}_{\epsilon \sim \mathcal{N}(0, 1)}[x_1 \mid x_0] = \sqrt{1 - \beta_1}\, x_0 + \sqrt{\beta_1}\underbrace{\mathbb{E}[\epsilon]}_{=0} = \sqrt{1 - \beta_1}\, x_0 = 0.72$$
@@ -492,7 +492,7 @@ In [Rombach et al. (2022)](file:///D:/AI/Diffusion/2112.10752v2.pdf) (*High-Reso
 ---
 
 ### 5.2 Stage 1: Perceptual Compression via a Fully Convolutional Autoencoder ($\mathcal{E}, \mathcal{D}$)
-To solve this, Rombach et al. first train a **Perceptual Autoencoder**—specifically a **Fully Convolutional VAE** (just like in [CS 182 Lecture 18, Section 2.10](file:///D:/AI/Diffusion/cs_182_generative_models_study_guide_lectures_17_19.md#L363-L380)) augmented with a perceptual loss (LPIPS) and a patch-based adversarial discriminator so reconstructions stay razor-sharp:
+To solve this, Rombach et al. first train a **Perceptual Autoencoder**, specifically a **Fully Convolutional VAE** (just like in [CS 182 Lecture 18, Section 2.10](file:///D:/AI/Diffusion/cs_182_generative_models_study_guide_lectures_17_19.md#L363-L380)) augmented with a perceptual loss (LPIPS) and a patch-based adversarial discriminator so reconstructions stay razor-sharp:
 * **Encoder $\mathcal{E}$:** Compresses a clean RGB image $x \in \mathbb{R}^{H \times W \times 3}$ into a low-dimensional 2D spatial latent tensor $z_0 = \mathcal{E}(x) \in \mathbb{R}^{h \times w \times c}$, downsampling spatial dimensions by a factor $f = H/h = W/w = 2^m$.
   * *Standard Stable Diffusion configuration ($f = 8, c = 4$):*
     $$x_0 \in \mathbb{R}^{512 \times 512 \times 3} \, (786,432 \text{ values}) \xrightarrow{\text{Encoder }\mathcal{E}} z_0 \in \mathbb{R}^{64 \times 64 \times 4} \, (16,384 \text{ values})$$
@@ -531,7 +531,7 @@ To turn LDM into a flexible conditional generator $p(z \mid y)$ controlled by a 
    * **Intuition:** Every spatial pixel patch in $Q$ asks: *"Which words in the text prompt $K$ are relevant to my location?"* The resulting attention map $\text{softmax}(QK^T/\sqrt{d})$ weights the semantic word features $V$ and injects them directly into that spatial region of the U-Net!
 3. **Conditioned Objective:**
    $$L_{\text{LDM}}(\theta) := \mathbb{E}_{\mathcal{E}(x), \, y, \, \epsilon \sim \mathcal{N}(0, 1), \, t} \Big[ \big\| \epsilon - \epsilon_\theta\big(z_t, \, t, \, \tau_\theta(y)\big) \big\|^2 \Big]$$
-4. **Classifier-Free Guidance (CFG — Ho & Salimans, 2022):**
+4. **Classifier-Free Guidance (CFG: Ho & Salimans, 2022):**
    During training, the text prompt $y$ is randomly replaced with an empty null token $\varnothing$ (e.g., 10% of the time) so the same U-Net learns both unconditional noise prediction $\epsilon_\theta(z_t, t, \varnothing)$ and conditional noise prediction $\epsilon_\theta(z_t, t, y)$. At inference time, we extrapolate in the direction of the prompt with guidance scale $w > 1$ (e.g., $w = 7.5$):
    $$\tilde{\epsilon}_\theta(z_t, t, y) = \epsilon_\theta(z_t, t, \varnothing) + w \cdot \big(\epsilon_\theta(z_t, t, y) - \epsilon_\theta(z_t, t, \varnothing)\big)$$
 
@@ -566,7 +566,7 @@ flowchart TB
 
 ### 6.1 Evidence-Supported Comparison: Pixel-Space DDPM vs. Latent Diffusion (LDM)
 
-| Explicit Criterion | Pixel-Space Diffusion (DDPM — Ho et al., 2020) | Latent Diffusion (LDM — Rombach et al., 2022) | Quantitative Evidence & Technical Explanation |
+| Explicit Criterion | Pixel-Space Diffusion (DDPM: Ho et al., 2020) | Latent Diffusion (LDM: Rombach et al., 2022) | Quantitative Evidence & Technical Explanation |
 | :--- | :--- | :--- | :--- |
 | **1. State Space & Dimensionality** | Operates directly on RGB pixels $x_t \in \mathbb{R}^{H \times W \times 3}$<br>*(At $512 \times 512 \times 3$: **$786,432$** scalars)* | Operates on VAE latent tensor $z_t \in \mathbb{R}^{(H/f) \times (W/f) \times c}$<br>*(At $f=8, c=4 \implies 64 \times 64 \times 4$: **$16,384$** scalars)* | **$48\times$ smaller tensor volume** ($f=8$) or **$16\times$ smaller** ($f=4, c=3$ on $256^2$ images). |
 | **2. Self-Attention Memory & Compute** | Scales quadratically with pixel count: $\mathcal{O}\big((H \cdot W)^2\big)$<br>*(At $512^2$: $N = 262,144$ tokens $\implies N^2 = 6.87 \times 10^{10}$)* | Scales with latent grid: $\mathcal{O}\big((h \cdot w)^2\big) = \frac{1}{f^4}\mathcal{O}\big((H \cdot W)^2\big)$<br>*(At $64^2$: $N = 4,096$ tokens $\implies N^2 = 1.67 \times 10^7$)* | **$4,096\times$ reduction** in self-attention matrix size for $f=8$ ($256\times$ reduction for $f=4$). |
@@ -581,13 +581,13 @@ flowchart TB
 ### 6.2 Downsampling Factor Trade-Off ($f \in \{1, 2, 4, 8, 16, 32\}$)
 In Section 4.1 of [Rombach et al. (2022)](file:///D:/AI/Diffusion/2112.10752v2.pdf), the authors systematically compare LDM-$f$ on ImageNet ($256 \times 256$):
 * **$f = 1$ (Pure Pixel-Space DDPM) & $f = 2$:** Training progresses very slowly because the diffusion model is forced to spend most of its capacity modeling imperceptible pixel-level details.
-* **$f = 4$ and $f = 8$ (The Sweet Spot):** Achieve the best balance between perceptual compression and semantic diffusion—converging much faster and reaching the lowest FID scores.
+* **$f = 4$ and $f = 8$ (The Sweet Spot):** Achieve the best balance between perceptual compression and semantic diffusion, converging much faster and reaching the lowest FID scores.
 * **$f = 16$ and $f = 32$ (Over-Compression):** The first-stage VAE bottlenecks too heavily, causing information loss and blurry/distorted reconstructions that stall the FID score early.
 
 ---
 
 ### 6.3 Critical Analysis of Limitations: Sampling Speed, Prompt Control, Training Data, Copyright & Bias
-To earn full marks on **Rubric Criterion 5 (Critical Analysis and Limitations — 10 points)** and **Task 6**, your report and presentation should critically evaluate five core limitations:
+To earn full marks on **Rubric Criterion 5 (Critical Analysis and Limitations: 10 points)** and **Task 6**, your report and presentation should critically evaluate five core limitations:
 
 1. **Sequential Sampling Speed Bottleneck:**
    * Even though Latent Diffusion reduces the cost *per step*, generation remains inherently sequential ($t = T, T-1, \dots, 1$) because step $t-1$ requires the output of step $t$.
@@ -617,7 +617,7 @@ According to **Sections II, IV, VI, and VII** of [S06_Seminar_DIFF.pdf](file:///
 | **Task 1:** Generative vs. Discriminative + Qualitative comparison (GANs, Autoregressive, Diffusion) | Covered in Section 2 above | Complete taxonomy and Generative Trilemma comparison table. |
 | **Task 2:** Forward process, $\beta$ schedule, Gaussian noise, reverse process, noise predictor, sampling + bidirectional diagram | Covered in Section 3 above | Mathematical derivations, Algorithms 1 & 2, and Mermaid/ASCII bidirectional diagrams. |
 | **Task 3 & Section III:** Symbol definitions, units/ranges, assumptions + 1D worked numerical example | Covered in Section 4 above | Complete symbol specification tables + step-by-step 1D calculation ($x_0 = 0.80, \beta_1 = 0.19, \epsilon = -0.50 \implies x_1 = 0.5021$, $\mathbb{E}[x_1\mid x_0] = 0.72$, $L_{\text{simple}} = 0.04$, reverse $\hat{x}_0$). |
-| **Task 4 (Experiment 1 — Mandatory):** Illustrate noise addition to a small image ($28 \times 28$) at 5 noise levels | Ready to run in Python | Python script applying $x_t = \sqrt{\bar{\alpha}_t}x_0 + \sqrt{1-\bar{\alpha}_t}\epsilon$ at $t \in \{0, 100, 300, 600, 1000\}$ on a $28 \times 28$ image + histogram & SNR plots. |
-| **Task 4 (Experiment 2 — Recommended):** Demonstrate denoising or image generation with a small model | Ready to run in Python | Python script demonstrating reverse denoising trajectory $x_T \to \dots \to x_0$ with a lightweight pretrained/illustrative DDPM. |
+| **Task 4 (Experiment 1: Mandatory):** Illustrate noise addition to a small image ($28 \times 28$) at 5 noise levels | Ready to run in Python | Python script applying $x_t = \sqrt{\bar{\alpha}_t}x_0 + \sqrt{1-\bar{\alpha}_t}\epsilon$ at $t \in \{0, 100, 300, 600, 1000\}$ on a $28 \times 28$ image + histogram & SNR plots. |
+| **Task 4 (Experiment 2: Recommended):** Demonstrate denoising or image generation with a small model | Ready to run in Python | Python script demonstrating reverse denoising trajectory $x_T \to \dots \to x_0$ with a lightweight pretrained/illustrative DDPM. |
 | **Task 5:** Latent diffusion (VAE encoder/decoder, latent space ops, cross-attention) + pipeline diagram | Covered in Section 5 above | Full mathematical explanation + Stage 1 / Stage 2 / Cross-Attention pipeline diagram. |
-| **Task 6 (Experiment 3 — Mandatory):** Explicit criteria comparison (Pixel vs. Latent Diffusion) + speed, quality, prompt control, copyright & bias | Covered in Section 6 above (+ Python benchmark script) | 7-criteria comparison table with Rombach et al. (2022) benchmarks + critical limitations analysis. |
+| **Task 6 (Experiment 3: Mandatory):** Explicit criteria comparison (Pixel vs. Latent Diffusion) + speed, quality, prompt control, copyright & bias | Covered in Section 6 above (+ Python benchmark script) | 7-criteria comparison table with Rombach et al. (2022) benchmarks + critical limitations analysis. |
