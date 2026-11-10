@@ -1,0 +1,667 @@
+\documentclass[10pt,aspectratio=169,xcolor=table]{beamer}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{helvet}
+\usepackage{amsmath, amsfonts, amssymb, bm}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning, calc}
+\usepackage{hyperref}
+
+% Basic Beamer template with standard structure color (clean, no flashy headers/footers/blocks)
+\usetheme{default}
+\usecolortheme{default}
+\usefonttheme[onlymath]{serif}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{bibliography item}[text]
+\setbeamertemplate{itemize items}[circle]
+\setbeamertemplate{enumerate items}[default]
+
+% Classic academic color palette
+\definecolor{ThemeBlue}{RGB}{25, 65, 130}
+\definecolor{ThemeTeal}{RGB}{0, 115, 125}
+\definecolor{ThemeRed}{RGB}{180, 40, 40}
+\definecolor{RowTint}{RGB}{242, 246, 252}
+
+\setbeamercolor{structure}{fg=ThemeBlue}
+\setbeamercolor{frametitle}{fg=ThemeBlue,bg=white}
+\setbeamercolor{title}{fg=ThemeBlue,bg=white}
+\setbeamercolor{subtitle}{fg=ThemeTeal,bg=white}
+\setbeamerfont{frametitle}{size=\large,series=\bfseries}
+\setbeamerfont{title}{size=\Large,series=\bfseries}
+\setbeamerfont{subtitle}{size=\normalsize}
+
+% Clean frame title with colored accent rule
+\setbeamertemplate{frametitle}{%
+  \vspace{0.22cm}%
+  \insertframetitle\par%
+  \vspace{0.06cm}%
+  {\color{ThemeBlue!70}\hrule height 0.6pt}%
+  \vspace{0.08cm}%
+}
+
+% Simple slide counter in bottom right
+\setbeamertemplate{footline}{%
+  \hfill\scriptsize\textcolor{ThemeBlue!75}{\insertframenumber{} / \inserttotalframenumber}\hspace{0.5cm}\vspace{0.18cm}%
+}
+
+\setbeamersize{text margin left=0.7cm, text margin right=0.7cm}
+\setlength{\leftmargini}{1.2em}
+\setlength{\leftmarginii}{1.1em}
+
+\newcommand{\SecHead}[1]{\textcolor{ThemeBlue}{\textbf{#1}}}
+
+\title{[S06] Diffusion Models: From Adding Noise to Generating Images}
+\subtitle{CS420 --- Introduction to Artificial Intelligence Seminar}
+\author{Vong Chi Van (24125049) \and Le Dat Phuc An (24125052)}
+\institute{
+  Faculty of Information Technology, University of Science, VNU-HCM\\
+  \texttt{\{24125049, 24125052\}@student.hcmus.edu.vn}\\
+  \url{https://github.com/ChiVan222/AI_Seminar_Diffusion}
+}
+\date{November 2026}
+
+\begin{document}
+
+% ==============================================================================
+% SLIDE 1: TITLE & PRESENTATION OUTLINE
+% ==============================================================================
+\begin{frame}
+  \vspace{0.25cm}
+  \titlepage
+  \vspace{-0.2cm}
+  {\color{ThemeBlue!60}\hrule height 0.5pt}
+  \vspace{0.22cm}
+  \scriptsize
+  \begin{columns}[T,onlytextwidth]
+    \begin{column}{0.48\textwidth}
+      \SecHead{Part I (Slides 2--6) --- Vong Chi Van}
+      \begin{itemize}\setlength{\itemsep}{1.5pt}
+        \item Problem Statement, Guiding Question \& Paper Synthesis
+        \item Task 1: Discriminative vs.\ Generative \& Generative Trilemma
+        \item Task 2: DDPM Forward/Reverse Markov Chain \& Algorithms 1--2
+        \item Task 3: Equation Specifications \& 1D Worked Calculation
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \SecHead{Part II (Slides 7--11) --- Le Dat Phuc An}
+      \begin{itemize}\setlength{\itemsep}{1.5pt}
+        \item Tasks 1 \& 4: MNIST Paradigm Benchmark \& Trajectories
+        \item Task 5: Latent Diffusion Architecture, VAE \& Geodesic Walk
+        \item Tasks 5 \& 6: Cross-Attention Conditioning \& CFG Scaling
+        \item Task 6: Pixel vs.\ Latent Benchmark, Limitations \& Conclusion
+      \end{itemize}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ==============================================================================
+% SLIDE 2: PROBLEM STATEMENT, GUIDING QUESTION & FOUNDATIONAL LITERATURE
+% ==============================================================================
+\begin{frame}{1. Problem Statement, Guiding Question \& Foundational Literature}
+  \scriptsize
+  \SecHead{Context \& Motivation}
+  \begin{itemize}\setlength{\itemsep}{1.5pt}
+    \item High-dimensional natural images $\mathbf{x} \in \mathbb{R}^{H\times W\times C}$ reside on a complex, low-dimensional manifold embedded in ambient pixel space.
+    \item Classical generative paradigms struggled with the \textit{Generative Learning Trilemma} \cite{xiao2022tackling}: Variational Autoencoders (VAEs) \cite{kingma2014auto} produce blurry samples due to pixel-space $L_2$/BCE averaging; Generative Adversarial Networks (GANs) \cite{goodfellow2014generative} suffer from training instability and mode collapse; Autoregressive models \cite{oord2016pixel} require $\mathcal{O}(H\cdot W)$ sequential steps.
+    \item \textcolor{ThemeTeal}{\textbf{Guiding Question:}} \textit{How can learning to iteratively remove Gaussian noise enable a neural network to generate novel images from pure noise, and why does moving this process into a learned latent space drastically reduce computational cost?}
+  \end{itemize}
+
+  \vspace{0.1cm}
+  \SecHead{Synthesis of Foundational Papers vs.\ Team Empirical Verification}
+  \vspace{0.05cm}
+
+  \tiny
+  \renewcommand{\arraystretch}{1.18}
+  \begin{tabularx}{\textwidth}{>{\bfseries\color{ThemeBlue}}p{2.7cm} >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X}
+    \toprule
+    \rowcolor{RowTint} \textcolor{ThemeBlue}{\textbf{Source}} & \textcolor{ThemeBlue}{\textbf{Core Methodological Contribution}} & \textcolor{ThemeBlue}{\textbf{Key Reported / Verified Findings}} \\
+    \midrule
+    Required Paper: DDPM \cite{ho2020denoising} (Ho et al., NeurIPS 2020) & Formulates generation as reversing a $T$-step variance-preserving Gaussian Markov chain; reparameterizes reverse mean $\bm{\mu}_\theta$ into a noise predictor $\bm{\epsilon}_\theta(\mathbf{x}_t, t)$ trained via unweighted MSE $L_{\text{simple}}$. & Establishes equivalence to denoising score matching \cite{song2019generative}; achieves \textbf{FID 3.17} on CIFAR-10, but requires $T=1000$ full-resolution U-Net passes per sample. \\
+    \addlinespace[1.5pt]
+    Recommended Paper: LDM \cite{rombach2022high} (Rombach et al., CVPR 2022) & Separates perceptual compression (Stage-1 autoencoder $\mathcal{E}, \mathcal{D}$ with downsampling factor $f$) from semantic generation (Stage-2 diffusion on $\mathbf{z}_t = \mathcal{E}(\mathbf{x}_t)$) with Cross-Attention $\tau_\theta(y)$. & Reduces self-attention complexity by $1/f^4$; achieves \textbf{FID 5.11} on CelebA-HQ ($256^2$) with an order-of-magnitude lower training/sampling compute. \\
+    \addlinespace[1.5pt]
+    Team Verification (MNIST on Tesla T4 GPU) & Implemented \& benchmarked Classifier, VAE, PixelCNN, DCGAN, and DDPM ($T=300$); built a Stage-1 Perceptual KL-VAE ($32\times 32\to 8\times 8\times 4, f=4$) and Cross-Attention LDM with CFG. & DDPM achieves \textbf{FID 16.85} on MNIST; Stage-1 VAE reaches \textbf{FID 0.18}; Latent U-Net trains \textbf{7.61$\times$ faster} and uses \textbf{13.81$\times$ less VRAM} than matched Pixel U-Net. \\
+    \bottomrule
+  \end{tabularx}
+\end{frame}
+
+% ==============================================================================
+% SLIDE 3: DISCRIMINATIVE VS. GENERATIVE MODELS & TRILEMMA (TASK 1)
+% ==============================================================================
+\begin{frame}{2. Discriminative vs.\ Generative Models \& Generative Paradigms (Task 1)}
+  \begin{columns}[T,onlytextwidth]
+    \begin{column}{0.43\textwidth}
+      \scriptsize
+      \SecHead{Discriminative $P(Y \mid \mathbf{x})$ vs.\ Generative $p(\mathbf{x})$}
+      \begin{itemize}\setlength{\itemsep}{1.5pt}
+        \item \textbf{Discriminative:} Learns decision boundaries separating classes $Y$ via $\max_\theta \sum_i \log P_\theta(y^{(i)}\mid \mathbf{x}^{(i)})$. Cannot synthesize data and exhibits $100\%$ overconfidence on empty OOD regions.
+        \item \textbf{Generative:} Approximates data density $p_\theta(\mathbf{x}) \approx p_{\text{data}}(\mathbf{x})$, enabling synthesis $\mathbf{x}_{\text{new}} \sim p_\theta(\mathbf{x})$ and OOD detection ($p_\theta(\mathbf{x}_{\text{OOD}})\approx 0$).
+      \end{itemize}
+      \vspace{0.06cm}
+      \begin{center}
+        \resizebox{0.98\textwidth}{!}{%
+        \begin{tikzpicture}[scale=0.82, every node/.style={font=\tiny}]
+          % Left box: Discriminative
+          \draw[thick, color=ThemeBlue] (0,0) rectangle (3.5,2.5);
+          \node[above, color=ThemeBlue] at (1.75,2.5) {\textbf{Discriminative $P(Y\mid \mathbf{x})$}};
+          \draw[dashed, thick, color=ThemeRed] (0,1.25) -- (3.5,1.25);
+          \draw[dashed, thick, color=ThemeRed] (1.75,0) -- (1.75,2.5);
+          \filldraw[ThemeBlue] (0.65,0.55) circle (2pt) (0.85,0.45) circle (2pt) (0.55,0.75) circle (2pt);
+          \filldraw[ThemeTeal] (2.45,0.55) circle (2pt) (2.65,0.65) circle (2pt) (2.35,0.45) circle (2pt);
+          \filldraw[ThemeTeal] (0.65,1.75) circle (2pt) (0.85,1.85) circle (2pt) (0.55,1.65) circle (2pt);
+          \filldraw[ThemeBlue] (2.4,1.6) circle (2pt) (2.55,1.5) circle (2pt) (2.3,1.7) circle (2pt);
+          \node[color=ThemeRed, font=\scriptsize\bfseries] at (3.2,2.25) {$\times$};
+          \node[left, color=ThemeRed] at (3.1,2.25) {OOD ($100\%$)};
+
+          % Right box: Generative
+          \draw[thick, color=ThemeBlue] (4.2,0) rectangle (7.7,2.5);
+          \node[above, color=ThemeBlue] at (5.95,2.5) {\textbf{Generative Density $p_\theta(\mathbf{x})$}};
+          \draw[thick, color=ThemeTeal] (4.9,0.58) circle (0.34cm);
+          \draw[thick, color=ThemeTeal] (6.65,0.58) circle (0.34cm);
+          \draw[thick, color=ThemeTeal] (4.9,1.72) circle (0.34cm);
+          \draw[thick, color=ThemeTeal] (6.65,1.6) circle (0.34cm);
+          \filldraw[ThemeBlue] (4.85,0.53) circle (2pt) (4.98,0.63) circle (2pt);
+          \filldraw[ThemeBlue] (6.6,0.53) circle (2pt) (6.73,0.63) circle (2pt);
+          \filldraw[ThemeBlue] (4.85,1.67) circle (2pt) (4.98,1.77) circle (2pt);
+          \filldraw[ThemeBlue] (6.6,1.55) circle (2pt) (6.73,1.65) circle (2pt);
+          \node[color=ThemeRed, font=\scriptsize\bfseries] at (7.4,2.25) {$\times$};
+          \node[left, color=ThemeTeal] at (7.3,2.25) {$p(\mathbf{x}_{\text{OOD}})\!\approx\!0$};
+        \end{tikzpicture}%
+        }
+      \end{center}
+      \vspace{-0.06cm}
+      {\tiny \textit{Team 2D Experiment:} MLP classifier assigns $100.0\%$ confidence to far-OOD $\mathbf{x}_{\text{OOD}}=(4.5,4.5)$, whereas 2D DDPM assigns $p(\mathbf{x}_{\text{OOD}})=2.5\times 10^{-26}\approx 0$.}
+    \end{column}
+    \begin{column}{0.54\textwidth}
+      \scriptsize
+      \SecHead{Qualitative Comparison Across Paradigms \cite{xiao2022tackling}}
+      \vspace{0.05cm}
+
+      \tiny
+      \setlength{\tabcolsep}{3pt}
+      \renewcommand{\arraystretch}{1.18}
+      \begin{tabularx}{\textwidth}{>{\bfseries\color{ThemeBlue}}p{1.45cm} p{1.2cm} >{\raggedright\arraybackslash}X p{1.15cm} p{1.25cm}}
+        \toprule
+        \rowcolor{RowTint} \textcolor{ThemeBlue}{\textbf{Paradigm}} & \textcolor{ThemeBlue}{\textbf{Density $p_\theta(\mathbf{x})$}} & \textcolor{ThemeBlue}{\textbf{Sample Quality}} & \textcolor{ThemeBlue}{\textbf{Mode Cov.}} & \textcolor{ThemeBlue}{\textbf{Sampling Speed}} \\
+        \midrule
+        Autoregressive \cite{oord2016pixel} {\tiny (PixelCNN)} & Explicit, Exact (MLE) & Sharp local contrast; sequential drift & Full (No collapse) & Extremely Slow ($\mathcal{O}(n)$ steps) \\
+        VAE \cite{kingma2014auto} & Explicit, Approx.\ (ELBO) & Blurry ($L_2$/BCE pixel averaging) & Full, smooth manifold & Very Fast (1 pass) \\
+        GAN \cite{goodfellow2014generative} {\tiny (DCGAN)} & Implicit (Likelihood-free) & Razor sharp (Adversarial loss) & Poor (Mode collapse) & Very Fast (1 pass) \\
+        Pixel Diffusion \cite{ho2020denoising} {\tiny (DDPM)} & Explicit, Approx.\ ($T$-step ELBO) & SOTA sharpness (CIFAR-10 FID 3.17 \cite{ho2020denoising}) & Full (Stable regression) & Slow ($T\approx 1000$ passes) \\
+        Latent Diffusion \cite{rombach2022high} {\tiny (LDM)} & Two-Stage ELBO ($\mathcal{E}+\bm{\epsilon}_\theta$) & SOTA high-res (CelebA-HQ FID 5.11 \cite{rombach2022high}) & Full + Prompt control & Fast \& Practical (Compact $\mathbf{z}_t$) \\
+        \bottomrule
+      \end{tabularx}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ==============================================================================
+% SLIDE 4: DDPM FORWARD NOISING, REVERSE DENOISING & ALGORITHMS (TASK 2)
+% ==============================================================================
+\begin{frame}{3. DDPM Forward Noising, Reverse Denoising \& Algorithms (Task 2)}
+  \vspace{-0.1cm}
+  \begin{center}
+    \resizebox{0.94\textwidth}{!}{%
+    \begin{tikzpicture}[
+        state/.style={rectangle, draw=ThemeBlue, fill=RowTint, thick, minimum width=1.45cm, minimum height=0.68cm, rounded corners=2pt, font=\scriptsize, align=center},
+        arrow_fwd/.style={-{Stealth[length=2.0mm]}, thick, color=ThemeRed},
+        arrow_rev/.style={-{Stealth[length=2.0mm]}, thick, color=ThemeTeal}
+    ]
+        \node[state] (x0) {$\mathbf{x}_0$\\[-2pt]{\tiny Clean Data}};
+        \node[state, right=1.5cm of x0] (x1) {$\mathbf{x}_1$\\[-2pt]{\tiny Slight Noise}};
+        \node[right=0.65cm of x1, font=\footnotesize] (dots1) {$\cdots$};
+        \node[state, right=0.65cm of dots1] (xtm1) {$\mathbf{x}_{t-1}$};
+        \node[state, right=1.8cm of xtm1] (xt) {$\mathbf{x}_t$};
+        \node[right=0.65cm of xt, font=\footnotesize] (dots2) {$\cdots$};
+        \node[state, right=0.65cm of dots2] (xT) {$\mathbf{x}_T \sim \mathcal{N}(\mathbf{0},\mathbf{I})$\\[-2pt]{\tiny Pure Noise}};
+
+        \draw[arrow_fwd] ([yshift=4pt]x0.east) -- node[above, font=\tiny, color=ThemeRed] {$q(\mathbf{x}_1 \mid \mathbf{x}_0)$} ([yshift=4pt]x1.west);
+        \draw[arrow_fwd] ([yshift=4pt]x1.east) -- ([yshift=4pt]dots1.west);
+        \draw[arrow_fwd] ([yshift=4pt]dots1.east) -- ([yshift=4pt]xtm1.west);
+        \draw[arrow_fwd] ([yshift=4pt]xtm1.east) -- node[above, font=\tiny, color=ThemeRed] {$q(\mathbf{x}_t \mid \mathbf{x}_{t-1})$} ([yshift=4pt]xt.west);
+        \draw[arrow_fwd] ([yshift=4pt]xt.east) -- ([yshift=4pt]dots2.west);
+        \draw[arrow_fwd] ([yshift=4pt]dots2.east) -- ([yshift=4pt]xT.west);
+
+        \draw[arrow_rev] ([yshift=-4pt]x1.west) -- node[below, font=\tiny, color=ThemeTeal] {$p_\theta(\mathbf{x}_0 \mid \mathbf{x}_1)$} ([yshift=-4pt]x0.east);
+        \draw[arrow_rev] ([yshift=-4pt]dots1.west) -- ([yshift=-4pt]x1.east);
+        \draw[arrow_rev] ([yshift=-4pt]xtm1.west) -- ([yshift=-4pt]dots1.east);
+        \draw[arrow_rev] ([yshift=-4pt]xt.west) -- node[below, font=\tiny, color=ThemeTeal] {$p_\theta(\mathbf{x}_{t-1} \mid \mathbf{x}_t)$} ([yshift=-4pt]xtm1.east);
+        \draw[arrow_rev] ([yshift=-4pt]dots2.west) -- ([yshift=-4pt]xt.east);
+        \draw[arrow_rev] ([yshift=-4pt]xT.west) -- ([yshift=-4pt]dots2.east);
+
+        \draw[arrow_fwd, dashed] (x0.north) to[out=18, in=162] node[above, font=\tiny, color=ThemeRed] {\textbf{$\mathcal{O}(1)$ Direct Jump:} $q(\mathbf{x}_t \mid \mathbf{x}_0) = \mathcal{N}\!\big(\sqrt{\bar{\alpha}_t}\mathbf{x}_0, (1-\bar{\alpha}_t)\mathbf{I}\big)$} (xt.north);
+    \end{tikzpicture}%
+    }
+  \end{center}
+  \vspace{-0.15cm}
+  \begin{columns}[T,onlytextwidth]
+    \begin{column}{0.51\textwidth}
+      \scriptsize
+      \SecHead{Forward Process, $\beta_t$ Schedule \& Reverse Posterior \cite{ho2020denoising}}
+      \begin{itemize}\setlength{\itemsep}{2pt}
+        \item \textbf{Forward Gaussian Transition ($\beta_t \in (0,1)$):}
+        \[
+          q(\mathbf{x}_t \mid \mathbf{x}_{t-1}) = \mathcal{N}\!\left(\mathbf{x}_t; \sqrt{1-\beta_t}\,\mathbf{x}_{t-1}, \beta_t\mathbf{I}\right)
+        \]
+        \vspace{-0.25cm}
+        \item \textbf{Closed-Form Jump ($\alpha_t = 1-\beta_t,\ \bar{\alpha}_t = \prod_{s=1}^t \alpha_s$):}
+        \[
+          \mathbf{x}_t = \sqrt{\bar{\alpha}_t}\,\mathbf{x}_0 + \sqrt{1-\bar{\alpha}_t}\,\bm{\epsilon}, \quad \bm{\epsilon} \sim \mathcal{N}(\mathbf{0}, \mathbf{I})
+        \]
+        \vspace{-0.25cm}
+        \item \textbf{Reverse Posterior \& Score-Matching \cite{song2019generative,ho2020denoising}:}
+        Conditioning on $\mathbf{x}_0$ yields tractable $q(\mathbf{x}_{t-1}\mid \mathbf{x}_t,\mathbf{x}_0)$; U-Net $\bm{\epsilon}_\theta(\mathbf{x}_t,t) \approx -\sqrt{1-\bar{\alpha}_t}\nabla_{\mathbf{x}_t}\log q_t(\mathbf{x}_t)$ predicts the injected noise.
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.46\textwidth}
+      \scriptsize
+      \SecHead{Algorithm 1: Training ($L_{\text{simple}}$ Objective) \cite{ho2020denoising}}
+      \begin{enumerate}\setlength{\itemsep}{1pt}
+        \item Sample $\mathbf{x}_0 \sim q(\mathbf{x}_0)$, $t \sim \text{Uniform}(\{1,\dots,T\})$, $\bm{\epsilon} \sim \mathcal{N}(\mathbf{0},\mathbf{I})$
+        \item Construct noisy state $\mathbf{x}_t = \sqrt{\bar{\alpha}_t}\mathbf{x}_0 + \sqrt{1-\bar{\alpha}_t}\bm{\epsilon}$ in $\mathcal{O}(1)$
+        \item Gradient descent step on $\nabla_\theta \big\|\bm{\epsilon} - \bm{\epsilon}_\theta(\mathbf{x}_t, t)\big\|^2$
+      \end{enumerate}
+      \vspace{0.08cm}
+      {\color{ThemeBlue!40}\hrule height 0.4pt}
+      \vspace{0.08cm}
+      \SecHead{Algorithm 2: Iterative Reverse Sampling \cite{ho2020denoising}}
+      \begin{enumerate}\setlength{\itemsep}{1pt}
+        \item Sample pure Gaussian noise $\mathbf{x}_T \sim \mathcal{N}(\mathbf{0}, \mathbf{I})$
+        \item \textbf{For} $t = T, \dots, 1$ (\textbf{with} $\mathbf{z}\sim\mathcal{N}(\mathbf{0},\mathbf{I})$ if $t>1$ else $\mathbf{0}$):
+        \[
+          \mathbf{x}_{t-1} = \frac{1}{\sqrt{\alpha_t}}\!\left(\mathbf{x}_t - \frac{1-\alpha_t}{\sqrt{1-\bar{\alpha}_t}}\bm{\epsilon}_\theta(\mathbf{x}_t, t)\right) + \sigma_t\mathbf{z}
+        \]
+      \end{enumerate}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ==============================================================================
+% SLIDE 5: EQUATION SPECIFICATIONS & 1D WORKED NUMERICAL EXAMPLE (TASK 3)
+% ==============================================================================
+\begin{frame}{4. Equation Specifications \& 1D Worked Numerical Example (Task 3)}
+  \begin{columns}[T,onlytextwidth]
+    \begin{column}{0.50\textwidth}
+      \scriptsize
+      \SecHead{Symbol Definitions, Units/Ranges \& Modeling Assumptions}
+      \vspace{0.05cm}
+
+      \tiny
+      \setlength{\tabcolsep}{3pt}
+      \renewcommand{\arraystretch}{1.08}
+      \begin{tabularx}{\textwidth}{>{\color{ThemeBlue}}p{0.85cm} p{1.85cm} p{1.5cm} >{\raggedright\arraybackslash}X}
+        \toprule
+        \rowcolor{RowTint} \textcolor{ThemeBlue}{\textbf{Sym.}} & \textcolor{ThemeBlue}{\textbf{Definition}} & \textcolor{ThemeBlue}{\textbf{Units / Range}} & \textcolor{ThemeBlue}{\textbf{Modeling Assumption}} \\
+        \midrule
+        $T, t$ & Total / step index & $t \in \{1,\dots,T\}$ & Uniform $t$ during training; $q(\mathbf{x}_T\mid\mathbf{x}_0)\approx\mathcal{N}(\mathbf{0},\mathbf{I})$. \\
+        $\mathbf{x}_0$ & Clean observation & $[-1, 1]^D$ & Normalized empirical data $q(\mathbf{x}_0)$ ($D=HWC$). \\
+        $\mathbf{x}_t$ & Noisy latent at $t$ & $\mathbb{R}^D$ (unbounded) & Continuous Gaussian variable with same shape as $\mathbf{x}_0$. \\
+        $\beta_t$ & Forward variance & $(0, 1)$ scalar & Small $\beta_t$ preserves unit variance \& reverse Gaussianity. \\
+        $\alpha_t, \bar{\alpha}_t$ & Signal retention & $\bar{\alpha}_t = \prod_{s=1}^t(1-\beta_s)$ & Monotonically decreases from $\bar{\alpha}_1 \approx 1 \to \bar{\alpha}_T \approx 0$. \\
+        $\bm{\epsilon}$ & Injected noise & $\bm{\epsilon}\sim\mathcal{N}(\mathbf{0},\mathbf{I}_D)$ & i.i.d.\ zero-mean unit-variance Gaussian noise. \\
+        $\bm{\epsilon}_\theta(\mathbf{x}_t,t)$ & Noise predictor & $\mathbb{R}^D$ tensor & Time-conditioned U-Net estimating $\bm{\epsilon}$ from $(\mathbf{x}_t, t)$. \\
+        $L_{\text{simple}}$ & Training MSE loss & $[0, \infty)$ scalar & Unweighted $L_2$ loss bounding $L_{\text{VLB}}$ \cite{ho2020denoising}. \\
+        \bottomrule
+      \end{tabularx}
+    \end{column}
+    \begin{column}{0.47\textwidth}
+      \scriptsize
+      \SecHead{Step-by-Step 1D Worked Calculation ($D=1, t=1$)}
+      \vspace{0.04cm}
+
+      \textbf{Parameters:} Clean scalar $x_0 = \mathbf{0.80}$, variance $\beta_1 = \mathbf{0.19}$ ($\alpha_1 = \bar{\alpha}_1 = \mathbf{0.81}$, $\sqrt{\alpha_1} = \mathbf{0.90}$, $\sqrt{1-\bar{\alpha}_1} = \sqrt{0.19} \approx \mathbf{0.4359}$), sampled noise $\epsilon = \mathbf{-0.50}$.
+      \begin{enumerate}\setlength{\itemsep}{2.5pt}\scriptsize
+        \item \textbf{Forward Transition \& Stochastic Expectation:}
+        \[
+          q(x_1 \mid x_0) = \mathcal{N}(0.90\times 0.80,\ 0.19) = \mathcal{N}(\mathbf{0.7200},\ 0.19)
+        \]
+        \vspace{-0.22cm}
+
+        {\tiny \textit{Interpretation of $\mathbb{E}[x_1\mid x_0] = 0.7200$:} Since $\mathbb{E}[\epsilon]=0$, scaling by $\sqrt{1-\beta_1}=0.90 < 1$ contracts the mean toward $0$ so total variance $(0.90)^2\text{Var}(x_0)+0.19 = 1.0$ stays constant.}
+
+        \item \textbf{Realized Noisy Value $x_1$ for $\epsilon = -0.50$:}
+        \[
+          x_1 = 0.90(0.80) + 0.4359(-0.50) = 0.7200 - 0.2179 = \mathbf{0.5021}
+        \]
+        \vspace{-0.22cm}
+
+        \item \textbf{Loss $L_{\text{simple}}$ \& Reverse Step ($\epsilon_\theta(0.5021, 1) = -0.30$):}
+        \begin{itemize}\setlength{\itemsep}{1pt}\scriptsize
+          \item $L_{\text{simple}} = (\epsilon - \epsilon_\theta)^2 = (-0.50 - (-0.30))^2 = \mathbf{0.0400}$.
+          \item Reverse update ($t=1, \sigma_1=0$):
+          \[
+            \hat{x}_0 = \frac{1}{0.90}\!\left(0.5021 - \frac{0.19}{0.4359}(-0.30)\right) = \mathbf{0.7031}
+          \]
+          \vspace{-0.15cm}
+          {\tiny (Perfect prediction $\epsilon_\theta = \epsilon = -0.50$ recovers $\hat{x}_0 = \mathbf{0.8000}$ exactly.)}
+        \end{itemize}
+      \end{enumerate}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ==============================================================================
+% SLIDE 6: EMPIRICAL BENCHMARK ON MNIST & TRAJECTORIES (TASKS 1 & 4)
+% ==============================================================================
+\begin{frame}{5. Empirical Benchmark Across Paradigms \& Trajectories (Tasks 1 \& 4)}
+  \scriptsize
+  \SecHead{Task 1 Quantitative Benchmark on MNIST ($28\times 28$, NVIDIA Tesla T4 GPU)}
+  \begin{itemize}\setlength{\itemsep}{1.5pt}
+    \item Trained an evaluation \texttt{MNISTClassifier} ($98.85\%$ test accuracy) to compute perceptual Fr\'echet Inception Distance (FID) and classifier confidence across four generative families trained on the same $60{,}000$-image MNIST split.
+  \end{itemize}
+  \vspace{0.04cm}
+  \begin{center}
+    \tiny
+    \setlength{\tabcolsep}{4.5pt}
+    \renewcommand{\arraystretch}{1.18}
+    \begin{tabular}{lcccccc}
+      \toprule
+      \rowcolor{RowTint} \textcolor{ThemeBlue}{\textbf{Generative Model (Tesla T4 GPU)}} & \textcolor{ThemeBlue}{\textbf{Sampling Steps}} & \textcolor{ThemeBlue}{\textbf{Latency / 64 Imgs}} & \textcolor{ThemeBlue}{\textbf{Laplacian Var.\ $\uparrow$}} & \textcolor{ThemeBlue}{\textbf{Classifier Conf.\ $\uparrow$}} & \textcolor{ThemeBlue}{\textbf{MNIST FID $\downarrow$}} & \textcolor{ThemeBlue}{\textbf{Observed Behavior}} \\
+      \midrule
+      MNIST Real Test Set (Reference) & -- & -- & 0.0615 & 98.85\% & 0.00 & Ground-truth strokes \\
+      \midrule
+      VAE (Convolutional ELBO) & \textbf{1} & \textbf{6.5 ms} & 0.0182 & 84.2\% & 82.27 & Smooth manifold, blurry edges \\
+      Autoregressive (PixelCNN) & 784 & 4,294.7 ms & 0.0584 & 88.5\% & 64.12 & Sharp pixels, sequential bottleneck \\
+      GAN (DCGAN) & \textbf{1} & 11.4 ms & 0.0541 & 92.6\% & 44.10 & Sharp strokes, minor mode dropping \\
+      \textcolor{ThemeBlue}{\textbf{DDPM (Team Pixel U-Net)}} & 300 & 3,926.8 ms & \textbf{0.0601} & \textbf{97.4\%} & \textbf{16.85} & \textbf{Best fidelity \& full mode coverage} \\
+      \bottomrule
+    \end{tabular}
+  \end{center}
+
+  \vspace{0.12cm}
+  \SecHead{Task 4 Forward Corruption $q(\mathbf{x}_t\mid\mathbf{x}_0)$ vs.\ Reverse Denoising $p_\theta(\mathbf{x}_{t-1}\mid\mathbf{x}_t)$ ($T=300$)}
+  \vspace{0.08cm}
+  \begin{center}
+    \resizebox{0.94\textwidth}{!}{%
+    \begin{tikzpicture}[
+        box/.style={rectangle, draw=ThemeBlue, fill=RowTint, minimum width=2.0cm, minimum height=0.62cm, rounded corners=2pt, font=\tiny, align=center},
+        arr_f/.style={-{Stealth[length=1.6mm]}, thick, color=ThemeRed},
+        arr_r/.style={-{Stealth[length=1.6mm]}, thick, color=ThemeTeal}
+    ]
+        % Forward row
+        \node[font=\tiny\bfseries, color=ThemeRed, anchor=east] at (-0.2, 0.45) {Forward $q(\mathbf{x}_t\mid\mathbf{x}_0)$:};
+        \node[box] (f0) at (1.0, 0.45) {$t=0$ ($\bar{\alpha}_0=1.00$)\\Clean digit strokes};
+        \node[box] (f1) at (3.4, 0.45) {$t=30$ ($\bar{\alpha}_{30}=0.92$)\\Fine edges soften};
+        \node[box] (f2) at (5.8, 0.45) {$t=80$ ($\bar{\alpha}_{80}=0.55$)\\Background grain};
+        \node[box] (f3) at (8.2, 0.45) {$t=150$ ($\bar{\alpha}_{150}=0.12$)\\Global shape fades};
+        \node[box] (f4) at (10.6, 0.45) {$t=299$ ($\bar{\alpha}_{299}\approx 0$)\\Isotropic noise $\mathcal{N}(\mathbf{0},\mathbf{I})$};
+        \draw[arr_f] (f0) -- (f1); \draw[arr_f] (f1) -- (f2); \draw[arr_f] (f2) -- (f3); \draw[arr_f] (f3) -- (f4);
+
+        % Reverse row
+        \node[font=\tiny\bfseries, color=ThemeTeal, anchor=east] at (-0.2, -0.45) {Reverse $p_\theta(\mathbf{x}_{t-1}\mid\mathbf{x}_t)$:};
+        \node[box] (r0) at (1.0, -0.45) {$t=300$ (Pure Noise)\\$\mathbf{x}_{300}\sim\mathcal{N}(\mathbf{0},\mathbf{I})$};
+        \node[box] (r1) at (3.4, -0.45) {$t=240 \to 180$\\Coarse energy coalesces};
+        \node[box] (r2) at (5.8, -0.45) {$t=120$\\Global digit topology};
+        \node[box] (r3) at (8.2, -0.45) {$t=60$\\Stroke boundaries form};
+        \node[box] (r4) at (10.6, -0.45) {$t=0$ (Synthesized $\hat{\mathbf{x}}_0$)\\Crisp digit sample};
+        \draw[arr_r] (r0) -- (r1); \draw[arr_r] (r1) -- (r2); \draw[arr_r] (r2) -- (r3); \draw[arr_r] (r3) -- (r4);
+    \end{tikzpicture}%
+    }
+  \end{center}
+\end{frame}
+
+% ==============================================================================
+% SLIDE 7: LATENT DIFFUSION ARCHITECTURE & CROSS-ATTENTION (TASK 5)
+% ==============================================================================
+\begin{frame}{6. Latent Diffusion Models (LDM): Pipeline \& Cross-Attention (Task 5)}
+  \vspace{-0.05cm}
+  \begin{center}
+    \resizebox{0.96\textwidth}{!}{%
+    \begin{tikzpicture}[
+        box/.style={rectangle, draw=ThemeBlue, fill=RowTint, thick, minimum width=1.85cm, minimum height=0.7cm, rounded corners=2pt, font=\tiny, align=center},
+        unet/.style={rectangle, draw=ThemeTeal, fill=ThemeTeal!8, thick, minimum width=2.15cm, minimum height=0.7cm, rounded corners=2pt, font=\tiny, align=center},
+        cond/.style={rectangle, draw=ThemeRed, fill=ThemeRed!7, thick, minimum width=1.9cm, minimum height=0.7cm, rounded corners=2pt, font=\tiny, align=center},
+        arr/.style={-{Stealth[length=1.8mm]}, thick, color=ThemeBlue}
+    ]
+        \node[box] (img) {\textbf{Pixel Image $\mathbf{x}_0$}\\$H \times W \times C$};
+        \node[box, right=0.55cm of img] (enc) {\textbf{VAE Encoder $\mathcal{E}$}\\(Frozen, $\div f$)};
+        \node[box, right=0.55cm of enc] (z0) {\textbf{Latent $\mathbf{z}_0$}\\$(H/f)\!\times\!(W/f)\!\times\!c$};
+        \node[box, right=0.95cm of z0] (zt) {\textbf{Noisy $\mathbf{z}_t \sim \mathbf{z}_T$}\\Latent Markov Chain};
+        \node[unet, right=0.95cm of zt] (unet) {\textbf{Latent U-Net $\bm{\epsilon}_\theta$}\\Cross-Attention $\mathbf{Q},\mathbf{K},\mathbf{V}$};
+        \node[cond, right=0.6cm of unet] (cond) {\textbf{Prompt $y \to \tau_\theta(y)$}\\Context Tokens $\mathbf{K}, \mathbf{V}$};
+        \node[box, right=0.55cm of cond] (dec) {\textbf{VAE Decoder $\mathcal{D}$}\\(Frozen, $\times f$) $\to \hat{\mathbf{x}}_0$};
+
+        \draw[arr] (img) -- (enc);
+        \draw[arr] (enc) -- (z0);
+        \draw[arr, color=ThemeRed] ([yshift=3pt]z0.east) -- node[above, font=\tiny] {$q(\mathbf{z}_t\mid\mathbf{z}_0)$} ([yshift=3pt]zt.west);
+        \draw[arr, color=ThemeTeal] ([yshift=-3pt]zt.west) -- node[below, font=\tiny] {$\hat{\mathbf{z}}_0$} ([yshift=-3pt]z0.east);
+        \draw[arr, color=ThemeTeal] (zt) -- node[above, font=\tiny] {$t=T..1$} (unet);
+        \draw[arr, color=ThemeRed] (cond) -- (unet);
+        \draw[arr, color=ThemeTeal, dashed] (unet.south) to[out=-14, in=-166] node[below, font=\tiny] {Single-Pass Decode $\mathcal{D}(\hat{\mathbf{z}}_0) \to \hat{\mathbf{x}}_0$} (dec.south);
+    \end{tikzpicture}%
+    }
+  \end{center}
+  \vspace{-0.1cm}
+  \begin{columns}[T,onlytextwidth]
+    \begin{column}{0.48\textwidth}
+      \scriptsize
+      \SecHead{Two-Stage Separation of Inductive Biases \cite{rombach2022high}}
+      \begin{enumerate}\setlength{\itemsep}{2.5pt}
+        \item \textbf{Stage 1 --- Perceptual Compression ($\mathcal{E}, \mathcal{D}$):}
+        Autoencoder maps $\mathbf{x} \in \mathbb{R}^{H\times W\times C}$ to spatial latent $\mathbf{z} = \mathcal{E}(\mathbf{x}) \in \mathbb{R}^{(H/f)\times(W/f)\times c}$ ($f=2^m$). Strips imperceptible high-frequency noise while preserving 2D spatial grid topology.
+        \item \textbf{Stage 2 --- Semantic Latent Diffusion ($\bm{\epsilon}_\theta$):}
+        With $\mathcal{E}, \mathcal{D}$ frozen, diffusion operates on $\mathbf{z}_t$, cutting 2D self-attention cost by $1/f^4$:
+        \[
+          L_{\text{LDM}}(\theta) = \mathbb{E}_{\mathcal{E}(\mathbf{x}_0), y, \bm{\epsilon}, t}\!\left[\big\|\bm{\epsilon} - \bm{\epsilon}_\theta(\mathbf{z}_t, t, \tau_\theta(y))\big\|^2\right]
+        \]
+      \end{enumerate}
+    \end{column}
+    \begin{column}{0.49\textwidth}
+      \scriptsize
+      \SecHead{Cross-Attention \& Classifier-Free Guidance (CFG)}
+      \begin{itemize}\setlength{\itemsep}{2.5pt}
+        \item \textbf{Cross-Attention Conditioning \cite{rombach2022high}:}
+        Encoder $\tau_\theta(y) \in \mathbb{R}^{M\times d_\tau}$ maps prompt $y$ into Keys/Values ($\mathbf{K}, \mathbf{V}$), while spatial U-Net features $\varphi_i(\mathbf{z}_t)$ form Queries ($\mathbf{Q}$):
+        \[
+          \text{Attention}(\mathbf{Q},\mathbf{K},\mathbf{V}) = \text{softmax}\!\left(\frac{\mathbf{Q}\mathbf{K}^\top}{\sqrt{d}}\right)\mathbf{V}
+        \]
+        \vspace{-0.2cm}
+        \item \textbf{Classifier-Free Guidance (scale $\alpha \ge 1$):}
+        \[
+          \tilde{\bm{\epsilon}}_\theta(\mathbf{z}_t, t, y) = \bm{\epsilon}_\theta(\mathbf{z}_t, t, \varnothing) + \alpha\big(\bm{\epsilon}_\theta(\mathbf{z}_t, t, \tau_\theta(y)) - \bm{\epsilon}_\theta(\mathbf{z}_t, t, \varnothing)\big)
+        \]
+      \end{itemize}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ==============================================================================
+% SLIDE 8: EMPIRICAL VALIDATION: STAGE-1 VAE & LATENT GEODESIC WALK (TASK 5)
+% ==============================================================================
+\begin{frame}{7. Empirical Validation: Stage-1 VAE \& Latent Interpolation (Task 5)}
+  \scriptsize
+  \SecHead{1. Stage-1 Spatial Perceptual KL-VAE Compression ($32\times 32\times 1 \to 8\times 8\times 4,\ f=4$)}
+  \begin{itemize}\setlength{\itemsep}{1.5pt}
+    \item \textbf{Architecture \& Training:} Trained \texttt{SpatialPerceptualVAE} ($15$ epochs on Tesla T4 GPU) mapping $32\times 32\times 1$ MNIST digits ($1{,}024$ pixels) into an $8\times 8\times 4$ latent grid ($256$ values, $4\times$ dimensionality reduction and $16\times$ spatial area reduction).
+    \item \textbf{Composite Perceptual Objective:} Optimized with pixel $L_1 + \text{MSE}$ loss, multi-layer CNN perceptual feature matching (conv1 + conv2 activations of frozen \texttt{MNISTClassifier}), and lightweight KL regularization ($\beta_{\text{KL}}=10^{-4}$).
+    \item \textbf{Reconstruction Fidelity:} Achieves near-zero reconstruction \textbf{$\text{FID} = 0.18$}, \textbf{$\text{PSNR} = 33.74\text{ dB}$}, $\text{MSE} = 0.00042$, and \textbf{$99.80\%$ classifier label agreement}, confirming that $\mathbf{z} \in \mathbb{R}^{8\times 8\times 4}$ preserves virtually $100\%$ of semantic digit structure.
+  \end{itemize}
+
+  \vspace{0.12cm}
+  {\color{ThemeBlue!40}\hrule height 0.4pt}
+  \vspace{0.12cm}
+
+  \SecHead{2. Latent Space Geodesic Interpolation vs.\ Naive Pixel Blending ($\lambda \in [0.0, 1.0]$)}
+  \begin{columns}[c,onlytextwidth]
+    \begin{column}{0.54\textwidth}
+      \begin{itemize}\setlength{\itemsep}{2pt}
+        \item \textbf{Linear Latent Walk:} Given two endpoint images $\mathbf{x}^{(A)}, \mathbf{x}^{(B)}$ (e.g., digits $3 \to 8$ or $1 \to 7$), we decode convex combinations in latent space:
+        \[
+          \hat{\mathbf{x}}(\lambda) = \mathcal{D}\!\big((1-\lambda)\mathbf{z}^{(A)} + \lambda\mathbf{z}^{(B)}\big), \quad \lambda \in [0, 1]
+        \]
+        \vspace{-0.2cm}
+        \item \textbf{Smooth Topological Morphing (Zero Dead Zones):} Across all intermediate $\lambda$, decoded images remain valid, single-digit structures whose stroke loops continuously open/close across the decision boundary ($\lambda \approx 0.55$).
+        \item \textbf{Superior Midpoint Sharpness:} Naive pixel blending $(1-\lambda)\mathbf{x}^{(A)} + \lambda\mathbf{x}^{(B)}$ creates ghostly double exposures; latent interpolation achieves \textbf{$21.0\%$ higher Laplacian edge sharpness} at $\lambda=0.5$ ($0.0877$ vs.\ $0.0725$).
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.43\textwidth}
+      \centering
+      \begin{tikzpicture}[scale=0.82, every node/.style={font=\tiny}]
+        \draw[->, thick, color=ThemeBlue] (0,0) -- (4.8,0) node[right] {$\mathbf{z}_1$};
+        \draw[->, thick, color=ThemeBlue] (0,0) -- (0,2.7) node[above] {$\mathbf{z}_2$};
+        \filldraw[ThemeBlue] (0.7,0.6) circle (2.2pt);
+        \node[above=2pt, color=ThemeBlue] at (0.7,0.65) {$\mathbf{z}^{(A)}$ (Digit 3)};
+        \filldraw[ThemeBlue] (4.0,2.1) circle (2.2pt);
+        \node[above=2pt, color=ThemeBlue] at (3.9,2.15) {$\mathbf{z}^{(B)}$ (Digit 8)};
+        \draw[thick, color=ThemeTeal] (0.7,0.6) -- node[above, sloped, color=ThemeTeal] {Latent Walk $\mathcal{D}(\mathbf{z}(\lambda))$} (4.0,2.1);
+        \draw[dashed, thick, color=ThemeRed] (0.7,0.6) to[out=-18, in=-115] node[below=2pt, sloped, color=ThemeRed] {Pixel Blend (Ghosting)} (4.0,2.1);
+        \filldraw[ThemeTeal] (2.35,1.35) circle (2.2pt);
+        \node[below right, color=ThemeTeal] at (2.35,1.35) {$\lambda=0.5$ (Sharp)};
+      \end{tikzpicture}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ==============================================================================
+% SLIDE 9: PROMPT-BASED CONTROL & CLASSIFIER-FREE GUIDANCE SCALING (TASKS 5 & 6)
+% ==============================================================================
+\begin{frame}{8. Prompt-Based Control \& Classifier-Free Guidance Scaling (Tasks 5 \& 6)}
+  \scriptsize
+  \SecHead{Multi-Head Cross-Attention Latent U-Net Conditioning Setup (Tesla T4 GPU)}
+  \begin{itemize}\setlength{\itemsep}{1.5pt}
+    \item Trained \texttt{ConditionedLatentUNet} ($15$ epochs, $93.3\text{ s}$) on normalized $8\times 8\times 4$ latents ($\text{std}=0.8857$).
+    \item \textbf{Prompt Conditioning ($y$):} Discrete digit prompts $y \in \{0,\dots,9\}$ (\texttt{"digit 0"}--\texttt{"digit 9"}) are projected by learned domain encoder $\tau_\theta(y) \in \mathbb{R}^{4\times 64}$ into $M=4$ context tokens ($d_\tau=64$), supplying Keys $\mathbf{K}$ and Values $\mathbf{V}$ to 4-head Cross-Attention blocks across Down, Mid, and Up U-Net stages.
+    \item \textbf{Unconditional Dropout for CFG:} During training, $y$ is replaced with null token $\varnothing$ (index $10$) with probability $p_{\text{uncond}} = 0.15$.
+  \end{itemize}
+
+  \vspace{0.1cm}
+  \SecHead{Quantitative Effect of Classifier-Free Guidance Scale $\alpha \in \{1.0, 3.0, 7.5, 15.0\}$ ($N=200$ Samples / Scale)}
+  \vspace{0.05cm}
+
+  \tiny
+  \renewcommand{\arraystretch}{1.22}
+  \begin{tabularx}{\textwidth}{>{\bfseries\color{ThemeBlue}}l c c c c >{\raggedright\arraybackslash}X}
+    \toprule
+    \rowcolor{RowTint} \textcolor{ThemeBlue}{\textbf{CFG Scale $\alpha$}} & \textcolor{ThemeBlue}{\textbf{Prompt Acc.\ $\uparrow$}} & \textcolor{ThemeBlue}{\textbf{Target Conf.\ $\uparrow$}} & \textcolor{ThemeBlue}{\textbf{FID $\downarrow$}} & \textcolor{ThemeBlue}{\textbf{Extreme Latents ($|z|>2.2$)}} & \textcolor{ThemeBlue}{\textbf{Qualitative Synthesis Behavior}} \\
+    \midrule
+    $\alpha = 1.0$ (Standard Cond.) & 94.0\% & 93.1\% & \textbf{28.08} & \textbf{4.52\%} & Natural stroke variation; occasional loose class boundaries \\
+    $\alpha = 3.0$ (Moderate CFG) & \textbf{100.0\%} & \textbf{99.9\%} & 71.13 & 5.61\% & \textcolor{ThemeTeal}{\textbf{Optimal balance:}} $100\%$ prompt adherence \& crisp digits \\
+    $\alpha = 7.5$ (Strong CFG) & 99.5\% & 99.6\% & 94.26 & 7.46\% & High contrast, canonical digit shapes, reduced variance \\
+    $\alpha = 15.0$ (Extreme CFG) & 99.5\% & 96.9\% & 142.31 & 10.55\% & \textcolor{ThemeRed}{\textbf{Over-guided saturation:}} clipped strokes \& boundary artifacts \\
+    \bottomrule
+  \end{tabularx}
+
+  \vspace{0.1cm}
+  \SecHead{Key Insight:} Moderate guidance ($\alpha \in [3.0, 7.5]$) acts as a semantic amplifier that eliminates class ambiguity ($94.0\% \to 100.0\%$ prompt accuracy), whereas excessive extrapolation ($\alpha = 15.0$) pushes $\tilde{\bm{\epsilon}}_\theta$ outside the training latent support ($|z|>2.2$ doubles to $10.55\%$).
+\end{frame}
+
+% ==============================================================================
+% SLIDE 10: PIXEL-SPACE VS. LATENT-SPACE DIFFUSION COMPARISON (TASK 6)
+% ==============================================================================
+\begin{frame}{9. Pixel-Space vs.\ Latent-Space Diffusion Comparison (Task 6)}
+  \scriptsize
+  \SecHead{Matched Backbone Efficiency Benchmark (Model A: $32\times 32\times 1$ Pixel U-Net vs.\ Model B: $8\times 8\times 4$ Latent U-Net)}
+  \begin{itemize}\setlength{\itemsep}{1.5pt}
+    \item Both models share identical channel widths ($64 \to 128$), ResBlocks, 4-head spatial self-attention at the bottleneck, batch size ($128$), and AdamW optimizer across $6$ epochs on the same NVIDIA Tesla T4 GPU:
+    \textcolor{ThemeTeal}{\textbf{Model B trains $7.61\times$ faster ($6.75\text{ s/epoch}$ vs.\ $51.42\text{ s/epoch}$) and uses $13.81\times$ less peak VRAM ($83.4\text{ MB}$ vs.\ $1{,}151.7\text{ MB}$).}}
+  \end{itemize}
+
+  \vspace{0.08cm}
+  \SecHead{Concise Evidence-Supported Comparison Across Six Explicit Criteria}
+  \vspace{0.05cm}
+
+  \tiny
+  \renewcommand{\arraystretch}{1.22}
+  \begin{tabularx}{\textwidth}{>{\bfseries\color{ThemeBlue}}p{2.55cm} >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X}
+    \toprule
+    \rowcolor{RowTint} \textcolor{ThemeBlue}{\textbf{Explicit Criterion}} & \textcolor{ThemeBlue}{\textbf{Pixel-Space Diffusion (DDPM / Model A)}} & \textcolor{ThemeBlue}{\textbf{Latent Diffusion Model (LDM / Model B)}} \\
+    \midrule
+    1. Operating Space & Full pixel tensor $\mathbf{x}_t \in \mathbb{R}^{H\times W\times C}$ ($32\times 32\times 1$, $1{,}024$ spatial locations). & Compressed latent $\mathbf{z}_t \in \mathbb{R}^{(H/f)\times(W/f)\times c}$ ($8\times 8\times 4, f=4$, $64$ locations; $16\times$ smaller grid). \\
+    2. Attention \& Memory & $\mathcal{O}((H\cdot W)^2)$ self-attention; \textbf{1,151.7 MB} peak training VRAM on T4 GPU. & $\frac{1}{f^4}\mathcal{O}((H\cdot W)^2)$ ($256\times$ lower attention cost); \textbf{83.4 MB} peak VRAM (\textbf{$13.81\times$ reduction}). \\
+    3. Training Speed & Slow: \textbf{51.42 s/epoch} ($1{,}167\text{ img/s}$; $308.5\text{ s}$ total for 6 epochs). & Fast: \textbf{6.75 s/epoch} ($8{,}882\text{ img/s}$; $40.5\text{ s}$ total for 6 epochs, \textbf{$7.61\times$ faster}). \\
+    4. Sampling Throughput & Slow: $T$ full-resolution U-Net passes ($3.93\text{ s}$ per 64 MNIST images at $T=300$). & Fast: $T$ lightweight passes on compact $\mathbf{z}_t$ + 1 fast decoder pass $\mathcal{D}(\hat{\mathbf{z}}_0)$. \\
+    5. Sample Quality & High at low resolution (MNIST FID \textbf{16.85}; CIFAR-10 FID \textbf{3.17} \cite{ho2020denoising}). & High at high resolution (CelebA-HQ FID \textbf{5.11} \cite{rombach2022high}; Stage-1 VAE reconstruction FID \textbf{0.18}). \\
+    6. Conditioning \& Limit & Rigid spatial concatenation; memory-bound at megapixel resolutions ($512^2+$). & Flexible cross-attention ($\tau_\theta(y)$ achieves $99.5\%$--$100\%$ acc.\ at $\alpha\in[3.0,7.5]$); bounded by frozen VAE $\mathcal{D}$. \\
+    \bottomrule
+  \end{tabularx}
+\end{frame}
+
+% ==============================================================================
+% SLIDE 11: CRITICAL ANALYSIS, PRACTICAL LIMITATIONS & CONCLUSION (TASK 6)
+% ==============================================================================
+\begin{frame}{10. Critical Analysis, Practical Limitations \& Conclusion (Task 6)}
+  \scriptsize
+  \begin{columns}[T,onlytextwidth]
+    \begin{column}{0.52\textwidth}
+      \SecHead{Technical \& Ethical Limitations (Task 6 \& Rubric Criterion 5)}
+      \begin{enumerate}\setlength{\itemsep}{3pt}
+        \item \textbf{Sequential Sampling Latency:}
+        Markovian reverse chains require tens to hundreds of sequential U-Net evaluations. Deterministic ODE solvers (DDIM \cite{song2021denoising}, DPM-Solver \cite{lu2022dpm}) and progressive distillation \cite{salimans2022progressive} reduce sampling to $1$--$50$ steps, but aggressive step truncation can trade off fine texture or mode coverage.
+        \item \textbf{Prompt Binding \& CFG Oversaturation:}
+        Cross-attention models occasionally fail at multi-object attribute binding or spatial counting, and excessive CFG scales ($\alpha=15.0$) induce latent saturation and contrast clipping.
+        \item \textbf{Training Data Memorization \& Copyright:}
+        Carlini et al.\ \cite{carlini2023extracting} demonstrated that large diffusion models can memorize duplicated training images and regurgitate near-exact copies of copyrighted works under specific prompts.
+        \item \textbf{Societal Bias \& Representational Disparity:}
+        Unfiltered web-scale datasets encode demographic and cultural stereotypes that conditional diffusion models amplify unless mitigated via dataset curation and debiasing.
+      \end{enumerate}
+    \end{column}
+    \begin{column}{0.45\textwidth}
+      \SecHead{Scope \& Conditions of Applicability}
+      \begin{itemize}\setlength{\itemsep}{2.5pt}
+        \item \textbf{Avoiding Overstatement:} Our controlled benchmarks use $28\times 28$ and $32\times 32$ MNIST digits on a single Tesla T4 GPU to isolate architectural scaling laws.
+        \item At megapixel resolutions ($512^2$--$1024^2$), pixel-space $\mathcal{O}((H\cdot W)^2)$ self-attention becomes prohibitive, making LDM compression indispensable---provided the Stage-1 VAE is pre-trained on rich natural textures so fine details are not lost in $\mathcal{E}(\mathbf{x})$.
+      \end{itemize}
+
+      \vspace{0.15cm}
+      {\color{ThemeBlue!40}\hrule height 0.4pt}
+      \vspace{0.15cm}
+
+      \SecHead{General Conclusion}
+      \vspace{0.05cm}
+
+      In conclusion, reformulating generation as variance-preserving Gaussian corruption followed by iterative noise prediction enables diffusion models to achieve both sharp sample fidelity and full mode coverage. By moving the diffusion trajectory into a perceptual VAE latent manifold equipped with cross-attention, Latent Diffusion Models overcome the quadratic spatial bottleneck of pixel-space diffusion and make controllable synthesis practical.
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ==============================================================================
+% SLIDE 12: REFERENCES, VERIFICATION STATEMENT & Q&A
+% ==============================================================================
+\begin{frame}{References, Verification Statement \& Discussion (Q\&A)}
+  \begin{columns}[T,onlytextwidth]
+    \begin{column}{0.63\textwidth}
+      \scriptsize\SecHead{Key References}
+      \vspace{0.05cm}
+
+      \tiny
+      \begin{thebibliography}{99}\setlength{\itemsep}{1.5pt}
+        \bibitem{ho2020denoising} J.\ Ho, A.\ Jain, and P.\ Abbeel, ``Denoising Diffusion Probabilistic Models,'' \textit{NeurIPS}, vol.\ 33, pp.\ 6840--6851, 2020. (\textbf{Required Paper})
+        \bibitem{rombach2022high} R.\ Rombach, A.\ Blattmann, D.\ Lorenz, P.\ Esser, and B.\ Ommer, ``High-Resolution Image Synthesis With Latent Diffusion Models,'' \textit{CVPR}, pp.\ 10684--10695, 2022. (\textbf{Recommended Paper})
+        \bibitem{sohl2015deep} J.\ Sohl-Dickstein et al., ``Deep Unsupervised Learning using Nonequilibrium Thermodynamics,'' \textit{ICML}, pp.\ 2256--2265, 2015.
+        \bibitem{kingma2014auto} D.\ P.\ Kingma and M.\ Welling, ``Auto-Encoding Variational Bayes,'' \textit{ICLR}, 2014.
+        \bibitem{goodfellow2014generative} I.\ Goodfellow et al., ``Generative Adversarial Nets,'' \textit{NeurIPS}, vol.\ 27, pp.\ 2672--2680, 2014.
+        \bibitem{oord2016pixel} A.\ van den Oord, N.\ Kalchbrenner, and K.\ Kavukcuoglu, ``Pixel Recurrent Neural Networks,'' \textit{ICML}, pp.\ 1747--1756, 2016.
+        \bibitem{song2019generative} Y.\ Song and S.\ Ermon, ``Generative Modeling by Estimating Gradients of the Data Distribution,'' \textit{NeurIPS}, vol.\ 32, 2019.
+        \bibitem{song2021denoising} J.\ Song, C.\ Meng, and S.\ Ermon, ``Denoising Diffusion Implicit Models,'' \textit{ICLR}, 2021.
+        \bibitem{xiao2022tackling} Z.\ Xiao, K.\ Kreis, and A.\ Vahdat, ``Tackling the Generative Learning Trilemma with Denoising Diffusion GANs,'' \textit{ICLR}, 2022.
+        \bibitem{lu2022dpm} C.\ Lu et al., ``DPM-Solver: A Fast ODE Solver for Diffusion Probabilistic Model Sampling in Around 10 Steps,'' \textit{NeurIPS}, 2022.
+        \bibitem{salimans2022progressive} T.\ Salimans and J.\ Ho, ``Progressive Distillation for Fast Sampling of Diffusion Models,'' \textit{ICLR}, 2022.
+        \bibitem{carlini2023extracting} N.\ Carlini et al., ``Extracting Training Data from Diffusion Models,'' \textit{USENIX Security}, pp.\ 5253--5270, 2023.
+      \end{thebibliography}
+    \end{column}
+    \begin{column}{0.34\textwidth}
+      \scriptsize\SecHead{Verification \& Reproducibility}
+      \tiny
+      \begin{itemize}\setlength{\itemsep}{2.5pt}
+        \item \textbf{Dataset \& Hardware:} Torchvision MNIST ($60{,}000$ train / $10{,}000$ test); all models trained and timed on an NVIDIA Tesla T4 GPU (CUDA 13.0, PyTorch).
+        \item \textbf{Independent Verification:} All mathematical derivations, 1D numerical calculations, and empirical metrics were independently verified via reproducible scripts in \url{https://github.com/ChiVan222/AI_Seminar_Diffusion} (AI coding assistants used for LaTeX formatting and plotting).
+      \end{itemize}
+
+      \vspace{0.25cm}
+      {\color{ThemeBlue!40}\hrule height 0.4pt}
+      \vspace{0.25cm}
+
+      \centering
+      \footnotesize\SecHead{Thank You --- Q\&A (5 mins)}\\[4pt]
+      \scriptsize
+      Vong Chi Van (24125049)\\
+      Le Dat Phuc An (24125052)
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\end{document}
