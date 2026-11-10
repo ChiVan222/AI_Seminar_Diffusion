@@ -4,7 +4,7 @@
 \usepackage[T1]{fontenc}
 \usepackage{times}
 \usepackage{amsmath, amsfonts, amssymb, amsthm, bm}
-\usepackage[top=2.2cm, bottom=2.2cm, left=2.5cm, right=2.5cm]{geometry}
+\usepackage[top=2.0cm, bottom=2.0cm, left=2.4cm, right=2.4cm]{geometry}
 \usepackage{booktabs}
 \usepackage{array}
 \usepackage{multirow}
@@ -42,7 +42,10 @@
                                     {\normalfont\normalsize\bfseries}}
 \makeatother
 
-\captionsetup{font=small, labelfont=bf, labelsep=period}
+\captionsetup{font=small, labelfont=bf, labelsep=period, skip=4pt}
+\setlength{\textfloatsep}{8pt plus 2pt minus 2pt}
+\setlength{\floatsep}{6pt plus 2pt minus 2pt}
+\setlength{\intextsep}{6pt plus 2pt minus 2pt}
 
 % Header and footer
 \pagestyle{plain}
@@ -74,6 +77,19 @@
     }%
   }%
 }
+\newcommand{\IncludeExpFigureTrim}[4]{%
+  \IfFileExists{#1}{%
+    \includegraphics[trim=#4, clip, width=#2]{#1}%
+  }{%
+    \IfFileExists{report/#1}{%
+      \includegraphics[trim=#4, clip, width=#2]{report/#1}%
+    }{%
+      \begin{center}%
+      \fbox{\parbox[c][3.2cm][c]{0.92\linewidth}{\centering \textit{\small [Experimental Figure: #3]}}}%
+      \end{center}%
+    }%
+  }%
+}
 
 \begin{document}
 
@@ -82,39 +98,41 @@
 % ==============================================================================
 \vbox{%
   \hrule height 4pt
-  \vskip 0.22in
+  \vskip 0.18in
   \centering
   {\LARGE\bfseries Diffusion Models:
   
   From Adding Noise to Generating Images\par}
-  \vskip 0.22in
+  \vskip 0.18in
   \hrule height 1pt
-  \vskip 0.09in
+  \vskip 0.07in
 }
 
 \begin{center}
-  \vspace{0.4em}
+  \vspace{0.2em}
   {\large
     Vong Chi Van\quad Le Dat Phuc An
-  }\par\vspace{0.3em}
+  }\par\vspace{0.25em}
   Faculty of Information Technology, University of Science, VNU-HCM\\
-  \texttt{\{24125049, 24125052\}@student.hcmus.edu.vn}\par
-  \vspace{1.0em}
+  \texttt{\{24125049, 24125052\}@student.hcmus.edu.vn}\\
+  \vspace{0.15em}
+  {\small \url{https://github.com/ChiVan222/AI_Seminar_Diffusion}}\par
+  \vspace{0.5em}
 \end{center}
 
 \begin{center}
   {\bfseries\large Abstract}
 \end{center}
-\vspace{-0.5em}
+\vspace{-0.6em}
 \begin{quote}
 \small
 \noindent
 Diffusion models have emerged as a dominant paradigm in generative artificial intelligence, achieving unprecedented visual fidelity and robust likelihood-based training without adversarial instability. This report investigates the fundamental guiding question: \textit{how can learning to remove noise enable a neural network to generate novel images, and why does diffusion within a learned latent space drastically reduce computational requirements?} Grounded in two foundational papers, Denoising Diffusion Probabilistic Models (Ho et al., 2020) and Latent Diffusion Models (Rombach et al., 2022), we examine the mathematical principles of forward Gaussian corruption, reverse denoising, and perceptual latent compression. Through theoretical derivations, a step-by-step numerical worked example, and empirical benchmark experiments, we provide an integrated analysis of diffusion dynamics, high-resolution scaling trade-offs, and practical deployment limitations.
 
-\vspace{0.4em}
+\vspace{0.3em}
 \noindent\textit{Keywords:} Generative AI, Denoising Diffusion Probabilistic Models, Latent Diffusion Models, Variational Autoencoders, Cross-Attention, Generative Learning Trilemma.
 \end{quote}
-\vspace{0.8em}
+\vspace{0.4em}
 
 % ==============================================================================
 % 1. INTRODUCTION
@@ -126,15 +144,15 @@ Synthesizing high-dimensional continuous signals such as natural images is a cen
 Deep generative architectures have historically struggled to simultaneously achieve high sample sharpness, comprehensive mode diversity, and fast sampling speed. While early generative paradigms made substantial progress, each faced inherent trade-offs between sample quality, training stability, and sampling efficiency.
 
 \paragraph{Tasks and Report Organization.}
-To systematically address the guiding question in accordance with the seminar requirements, this report is structured around six concrete tasks:
-\begin{itemize}[leftmargin=1.8em, itemsep=0.25em]
-    \item \textit{Task 1: Foundational Paradigms and the Generative Trilemma.} We contrast discriminative classifiers with generative modeling and compare autoregressive models, variational autoencoders, generative adversarial networks, and diffusion models across the generative learning trilemma both qualitatively and quantitatively (Sections \ref{sec:bg_disc_gen}, \ref{sec:bg_trilemma}, and \ref{sec:res_task1}).
-    \item \textit{Task 2: DDPM Mathematical Framework.} We formulate the variance-preserving forward process, variance schedule selection, closed-form multi-step transitions, the learned reverse Markov chain, and the simplified noise-prediction training objective (Section \ref{sec:method_ddpm_theory}).
-    \item \textit{Task 3: Symbol Definitions and 1D Worked Example.} We specify complete symbol definitions, physical units, and modeling assumptions, accompanied by a step-by-step one-dimensional numerical worked example illustrating stochastic signal contraction and reverse denoising (Section \ref{sec:method_worked_example}).
-    \item \textit{Task 4: Multi-Level Forward Corruption and Reverse Image Generation.} We demonstrate forward noise corruption across multiple timesteps and iterative reverse image generation trajectories on empirical benchmarks (Section \ref{sec:res_task4}).
-    \item \textit{Task 5: Latent Diffusion Architecture.} We analyze and empirically validate the two-stage inductive bias of Latent Diffusion Models, examining perceptual autoencoder compression, latent manifold smoothness, and cross-attention conditioning with classifier-free guidance (Sections \ref{sec:method_ldm_arch} and \ref{sec:res_task5}).
-    \item \textit{Task 6: Pixel vs.\ Latent Comparative Evaluation and Practical Limitations.} We provide an evidence-supported comparison between pixel-space and latent-space diffusion across explicit computational and quality metrics, followed by a critical evaluation of real-world limitations including sequential sampling latency, prompt attribute binding, copyright memorization, and societal bias (Sections \ref{sec:res_task6} and \ref{sec:limitations}).
-\end{itemize}
+This report is structured around the six required seminar tasks:
+\begin{enumerate}[leftmargin=1.8em, itemsep=0.12em, topsep=0.25em]
+    \item Distinguish generative and discriminative models; qualitatively compare GANs, autoregressive models, and diffusion models (Sections \ref{sec:bg_disc_gen}, \ref{sec:bg_trilemma}, and \ref{sec:res_task1}).
+    \item Explain the forward process, $\beta$ schedule, Gaussian noise, reverse process, noise predictor, and sampling. Draw a diagram illustrating both directions (Section \ref{sec:method_ddpm_theory}).
+    \item Manually calculate one step of one-dimensional forward noising using chosen values for $x_0$, $\beta$, and $\epsilon$; define the symbols and interpret the stochastic expectation (Section \ref{sec:method_worked_example}).
+    \item Illustrate noise addition to a small image ($28 \times 28$) at five noise levels and demonstrate denoising and image generation (Section \ref{sec:res_task4}).
+    \item Explain latent diffusion using a VAE encoder/decoder, operations in latent space, and cross-attention conditioning; illustrate the pipeline (Sections \ref{sec:method_ldm_arch} and \ref{sec:res_task5}).
+    \item Discuss sampling speed, quality, prompt-based control, and limitations related to training data, copyright, and bias. Compare one latent-diffusion setting with pixel-space diffusion using explicit criteria (Sections \ref{sec:res_task6} and \ref{sec:limitations}).
+\end{enumerate}
 
 % ==============================================================================
 % 2. BACKGROUND & PAPER REVIEW
@@ -145,7 +163,7 @@ To systematically address the guiding question in accordance with the seminar re
 \label{sec:bg_disc_gen}
 
 Supervised machine learning and probabilistic modeling are fundamentally divided into two complementary paradigms:
-\begin{enumerate}[leftmargin=1.8em, itemsep=0.3em]
+\begin{enumerate}[leftmargin=1.8em, itemsep=0.2em, topsep=0.25em]
     \item \textit{Discriminative Models:} Discriminator models are mainly used for classification and regression tasks. A discriminative model directly learns to predict the conditional probability distribution $P(Y \mid \mathbf{x})$, where $Y$ is the class label and $\mathbf{x}$ represents the input features. It learns decision boundaries separating classes without modeling the distribution of the input features $\mathbf{x}$. Consequently, a discriminative model cannot generate novel data samples and often produces spuriously overconfident predictions on empty out-of-distribution regions.
 
     \item \textit{Generative Models:} Generative models are primarily used to generate novel data, though they can also be used for classification. A generative model learns the underlying data distribution $p(\mathbf{x})$, or the joint distribution $p(\mathbf{x}, Y)$ when conditioned on class labels $Y$. Its primary function is synthesizing new, realistic samples $\mathbf{x}_{\text{new}} \sim p(\mathbf{x})$ that resemble the training data distribution, while assigning negligible density to regions devoid of data.
@@ -155,7 +173,7 @@ Figure \ref{fig:exp_disc_gen} illustrates this fundamental distinction on a four
 
 \begin{figure}[htbp]
 \centering
-\IncludeExpFigure{../experiments/figures/task1_discriminative_vs_generative_2d.png}{0.86\textwidth}{2D Discriminative Classifier vs. Generative Model Comparison}
+\IncludeExpFigure{../experiments/figures/task1_discriminative_vs_generative_2d.png}{0.78\textwidth}{2D Discriminative Classifier vs. Generative Model Comparison}
 \caption{(a) A discriminative classifier learns quadrant decision boundaries to predict $P(Y\mid\mathbf{x})$ for classification, but exhibits unwarranted $100.0\%$ overconfidence at an empty out-of-distribution coordinate $\mathbf{x}_{\text{OOD}} = (4.5, 4.5)$ and lacks generative ability; (b) A generative model explicitly learns the data density $p_\theta(\mathbf{x})$, detects out-of-distribution queries by assigning negligible density ($p(\mathbf{x}_{\text{OOD}}) \approx 0$), and synthesizes novel realistic samples $\mathbf{x}_{\text{new}} \sim p_\theta(\mathbf{x})$ along all four data modes.}
 \label{fig:exp_disc_gen}
 \end{figure}
@@ -477,21 +495,21 @@ Figure \ref{fig:ldm_architecture} illustrates the complete Latent Diffusion Mode
 \subsection{Implementation Setup and Datasets}
 \label{sec:res_setup}
 
-To empirically validate the theoretical principles of diffusion models, all experiments were implemented in PyTorch and executed on a single NVIDIA Tesla T4 GPU ($14.6\text{ GB}$ VRAM, CUDA 13.0) across two self-contained experimental suites:
-\begin{enumerate}[leftmargin=1.8em, itemsep=0.25em]
-    \item \textit{Tasks 1 \& 4 — Pixel-Space Generative Paradigms and Diffusion Trajectories on MNIST (\nolinkurl{experiments/task1_generative_paradigms_comparison.ipynb}):} Trained a Conv-VAE ($12$ epochs, $51.1\text{ s}$), Autoregressive PixelCNN ($12$ epochs, $168.9\text{ s}$), DCGAN ($14$ epochs, $95.7\text{ s}$), and a Pixel-Space DDPM ($T=300$, linear schedule $\beta_1=10^{-4} \to \beta_{300}=0.055$, Sinusoidal time-embedded U-Net, $15$ epochs, $272.3\text{ s}$) on MNIST ($28 \times 28$), alongside a discriminative CNN classifier (\texttt{MNISTClassifier}, $4$ epochs, $5.6\text{ s}$, achieving $98.85\%$ test accuracy) for quantitative evaluation.
-    \item \textit{Tasks 5 \& 6 — Latent Diffusion Architecture and Pixel-vs.-Latent Efficiency Suite (\nolinkurl{experiments/task5_6_ldm_4_experiments.ipynb}):} Trained a Stage-1 Spatial Perceptual KL-VAE ($32 \times 32 \times 1 \to 8 \times 8 \times 4$, spatial downsampling factor $f=4$, $\beta_{\text{KL}}=10^{-4}$), a 1D-Vector Bottleneck VAE ($\mathbf{z} \in \mathbb{R}^{10}$), a Multi-Head Cross-Attention Conditioned Latent U-Net (\texttt{ConditionedLatentUNet}) with Classifier-Free Guidance ($p_{\text{uncond}}=0.15$), and two architecturally identical benchmark U-Nets (\texttt{BenchmarkUNet}) operating on $32 \times 32$ pixels vs.\ $8 \times 8$ latents, evaluated via a $32\times 32$ CNN classifier ($98.10\%$ test accuracy) and the pretrained Stable Diffusion KL-VAE (\texttt{stabilityai/sd-vae-ft-mse}) on CIFAR-10 RGB.
+All experiments were implemented in PyTorch and executed on a single NVIDIA Tesla T4 GPU ($14.6\text{ GB}$ VRAM, CUDA 13.0) across two experimental suites:
+\begin{enumerate}[leftmargin=1.8em, itemsep=0.12em, topsep=0.2em]
+    \item \textit{Tasks 1 \& 4 (Pixel-Space Paradigms and Trajectories on MNIST):} Trained a Conv-VAE ($12$ epochs, $51.1\text{ s}$), Autoregressive PixelCNN ($12$ epochs, $168.9\text{ s}$), DCGAN ($14$ epochs, $95.7\text{ s}$), and Pixel-Space DDPM ($T=300$, linear schedule $\beta_1=10^{-4} \to \beta_{300}=0.055$, $15$ epochs, $272.3\text{ s}$) on MNIST ($28 \times 28$), evaluated by a trained \texttt{MNISTClassifier} ($98.85\%$ test accuracy).
+    \item \textit{Tasks 5 \& 6 (Latent Diffusion Architecture and Efficiency Suite):} Trained a Stage-1 Spatial Perceptual KL-VAE ($32 \times 32 \times 1 \to 8 \times 8 \times 4$, downsampling factor $f=4$, $\beta_{\text{KL}}=10^{-4}$), a Cross-Attention Conditioned Latent U-Net (\texttt{ConditionedLatentUNet}, $p_{\text{uncond}}=0.15$), and two architecturally identical U-Nets (\texttt{BenchmarkUNet}) on $32 \times 32$ pixels vs.\ $8 \times 8$ latents, evaluated via a $32\times 32$ CNN classifier ($98.10\%$ test accuracy).
 \end{enumerate}
 
 \subsection{Qualitative and Quantitative Comparison Across Generative Paradigms (Task 1)}
 \label{sec:res_task1}
 
-To empirically validate the qualitative comparison in Section \ref{sec:bg_trilemma} (Table \ref{tab:task1_paradigms}), we trained a discriminative CNN classifier (\texttt{MNISTClassifier}) on the $60{,}000$-image MNIST training set that achieves \textbf{$98.85\%$ test accuracy} on the $10{,}000$-image test set, using its penultimate feature representations and predictive posteriors to evaluate Classifier Confidence (Cls.\ Conf.\ $\uparrow$), Inception Score (IS $\uparrow$), and Fr\'echet Inception Distance (FID $\downarrow$) alongside Laplacian Variance (LapVar $\uparrow$, edge sharpness). Figure \ref{fig:task1_mnist_samples} presents side-by-side samples synthesized from pure random noise across all four trained generative paradigms, and Table \ref{tab:quantitative_benchmark} reports the corresponding quantitative metrics and batch sampling latencies ($64$ images) alongside the real MNIST test set reference.
+To empirically validate Section \ref{sec:bg_trilemma} (Table \ref{tab:task1_paradigms}), we trained a discriminative CNN classifier (\texttt{MNISTClassifier}) on the $60{,}000$-image MNIST training set that achieves \textbf{$98.85\%$ test accuracy} on the $10{,}000$-image test set to evaluate Classifier Confidence (Cls.\ Conf.\ $\uparrow$), Inception Score (IS $\uparrow$), and Fr\'echet Inception Distance (FID $\downarrow$) alongside Laplacian Variance (LapVar $\uparrow$). Figure \ref{fig:task1_mnist_samples} presents samples synthesized from pure random noise across all four trained paradigms, and Table \ref{tab:quantitative_benchmark} reports their quantitative metrics and batch sampling latencies ($64$ images).
 
 \begin{figure}[H]
 \centering
-\IncludeExpFigure{../experiments/figures/task1_visual_samples_comparison.png}{0.96\textwidth}{Qualitative Samples Generated from Pure Noise Across Generative Paradigms}
-\caption{Qualitative comparison of samples generated from pure noise across paradigms on MNIST (Task 1): (1) Conv-VAE samples in a single pass ($6.5\text{ ms} / 64\text{ imgs}$) with full mode coverage but exhibits blurry stroke halos from $L_2$/BCE mode averaging; (2) Autoregressive PixelCNN produces sharp local pixel contrast without mode collapse but requires $784$ sequential pixel evaluations ($4{,}294.7\text{ ms} / 64\text{ imgs}$); (3) DCGAN generates razor-sharp digits in $1$ pass ($11.4\text{ ms} / 64\text{ imgs}$) but suffers from adversarial mode dropping; (4) Pixel-Space DDPM combines sharp strokes with full mode diversity across $300$ reverse denoising steps ($3{,}926.8\text{ ms} / 64\text{ imgs}$).}
+\IncludeExpFigure{../experiments/figures/task1_visual_samples_comparison.png}{0.82\textwidth}{Qualitative Samples Generated from Pure Noise Across Generative Paradigms}
+\caption{Qualitative comparison of samples generated from pure noise across paradigms on MNIST (Task 1): (1) Conv-VAE samples in $1$ pass ($6.5\text{ ms} / 64\text{ imgs}$) with full diversity but blurry stroke halos from $L_2$/BCE mode averaging; (2) Autoregressive PixelCNN produces sharp local contrast without mode collapse but requires $784$ sequential steps ($4{,}294.7\text{ ms} / 64\text{ imgs}$); (3) DCGAN generates razor-sharp digits in $1$ pass ($11.4\text{ ms} / 64\text{ imgs}$) with mode dropping; (4) Pixel-Space DDPM combines sharp strokes with full mode diversity across $300$ denoising steps ($3{,}926.8\text{ ms} / 64\text{ imgs}$).}
 \label{fig:task1_mnist_samples}
 \end{figure}
 
@@ -521,81 +539,73 @@ To empirically demonstrate the multi-step Markov transitions formulated in Secti
 
 \begin{figure}[H]
 \centering
-\IncludeExpFigure{../experiments/figures/task1_and_4_diffusion_trajectories.png}{0.94\textwidth}{MNIST Forward Noising and Reverse Denoising Trajectories}
-\caption{Multi-level forward noise corruption and reverse image generation on MNIST ($T=300$, Task 4): Top row illustrates closed-form forward corruption $q(\mathbf{x}_t \mid \mathbf{x}_0)$ across $t \in \{0, 30, 80, 150, 220, 299\}$, where fine stroke edges soften by $t=30$ ($\bar{\alpha}_{30}=0.92$), global digit outlines fade by $t=150$ ($\bar{\alpha}_{150}=0.12$), and the signal converges to isotropic Gaussian noise by $t=299$ ($\bar{\alpha}_{299}\approx 0.00$); Bottom row shows learned reverse denoising $p_\theta(\mathbf{x}_{t-1} \mid \mathbf{x}_t)$ starting from pure white noise $\mathbf{x}_{300} \sim \mathcal{N}(\mathbf{0}, \mathbf{I})$ across $t \in \{300, 240, 180, 120, 60, 0\}$, progressively sculpting coarse stroke topology ($t \in [180, 120]$) into a crisp handwritten digit at $t=0$.}
+\IncludeExpFigure{../experiments/figures/task1_and_4_diffusion_trajectories.png}{0.76\textwidth}{MNIST Forward Noising and Reverse Denoising Trajectories}
+\caption{Multi-level forward noise corruption and reverse image generation on MNIST ($T=300$, Task 4): Top row illustrates closed-form forward corruption $q(\mathbf{x}_t \mid \mathbf{x}_0)$ across $t \in \{0, 30, 80, 150, 220, 299\}$, where fine stroke edges soften by $t=30$ ($\bar{\alpha}_{30}=0.92$), global digit outlines fade by $t=150$ ($\bar{\alpha}_{150}=0.12$), and the signal converges to isotropic Gaussian noise by $t=299$ ($\bar{\alpha}_{299}\approx 0.00$); Bottom row shows learned reverse denoising $p_\theta(\mathbf{x}_{t-1} \mid \mathbf{x}_t)$ from pure noise $\mathbf{x}_{300} \sim \mathcal{N}(\mathbf{0}, \mathbf{I})$ across $t \in \{300, 240, 180, 120, 60, 0\}$ into a crisp digit at $t=0$.}
 \label{fig:mnist_trajectories}
 \end{figure}
 
 \subsection{Empirical Validation of Latent Diffusion Architecture (Task 5)}
 \label{sec:res_task5}
 
-We next evaluate the three core architectural components of Latent Diffusion Models \cite{rombach2022high}: Stage-1 perceptual spatial compression, latent manifold continuity, and cross-attention conditioning with Classifier-Free Guidance.
-
-\paragraph{Task 5.1: Perceptual VAE Compression Fidelity ($\mathbf{x}$ vs.\ $\hat{\mathbf{x}} = \mathcal{D}(\mathcal{E}(\mathbf{x}))$).}
-We trained a Stage-1 Spatial Perceptual KL-VAE that compresses $32 \times 32 \times 1$ images into an $8 \times 8 \times 4$ latent grid ($f=4$ spatial downsampling, $\beta_{\text{KL}} = 10^{-4}$) and benchmarked its reconstruction fidelity on $N=1{,}000$ held-out test images against a traditional 1D-vector bottleneck VAE ($\mathbf{z} \in \mathbb{R}^{10}$) as well as the pretrained Stable Diffusion KL-VAE (\texttt{stabilityai/sd-vae-ft-mse}) on CIFAR-10 RGB test images; the visual and quantitative results are presented in Figure \ref{fig:task5_exp1_vae}.
+\paragraph{Latent Space Compression and Geodesic Interpolation.}
+We trained a Stage-1 Spatial Perceptual KL-VAE ($32 \times 32 \times 1 \to 8 \times 8 \times 4$, downsampling factor $f=4$) that achieves near-zero reconstruction $\text{FID} = 0.18$ ($\text{MSE} = 0.00042$, $\text{PSNR} = 33.74\text{ dB}$, $99.80\%$ label agreement; Figure \ref{fig:task5_exp1_vae}). To verify that this $8 \times 8 \times 4$ latent space forms a smooth, continuous manifold free of dead zones, we encoded held-out test digit pairs ($3 \to 8$ and $1 \to 7$) into $\mathbf{z}^{(A)} = \mathcal{E}(\mathbf{x}^{(A)})$ and $\mathbf{z}^{(B)} = \mathcal{E}(\mathbf{x}^{(B)})$, decoded linear latent interpolations $\hat{\mathbf{x}}(\lambda) = \mathcal{D}((1-\lambda)\mathbf{z}^{(A)} + \lambda\mathbf{z}^{(B)})$ for $\lambda \in \{0.0, 0.1, \dots, 1.0\}$, and compared them against naive pixel-space blending $(1-\lambda)\mathbf{x}^{(A)} + \lambda\mathbf{x}^{(B)}$ in Figure \ref{fig:task5_exp3_walk}.
 
 \begin{figure}[H]
 \centering
-\IncludeExpFigureTrimTop{../experiments/figures/task5_exp1_vae_compression_fidelity.png}{0.98\textwidth}{Task 5.1: VAE Perceptual Compression Fidelity}{28pt}
-\caption{Perceptual VAE compression fidelity evaluation on $N=1{,}000$ test images (Task 5.1): (a) Visual comparison of original $\mathbf{x}$ ($32\times 32$), spatial latent $\mathbf{z}$ ($8\times 8\times 4$, $f=4$), LDM Spatial KL-VAE reconstruction $\hat{\mathbf{x}} = \mathcal{D}(\mathcal{E}(\mathbf{x}))$, amplified residual $|\mathbf{x}-\hat{\mathbf{x}}|\times 4$, and blurry 1D-Vector VAE reconstruction ($\mathbf{z} \in \mathbb{R}^{10}$); (b) LDM Spatial KL-VAE achieves $\text{MSE} = 0.00042$ ($25.8\times$ lower than 1D-VAE's $\text{MSE} = 0.01089$) and $\text{PSNR} = 33.74\text{ dB}$ (vs.\ $19.63\text{ dB}$; pretrained Stable Diffusion KL-VAE on CIFAR-10 RGB similarly achieves $\text{MSE} = 0.00363$, $\text{PSNR} = 24.40\text{ dB}$); (c) Semantic distribution fidelity reaches near-zero $\text{FID} = 0.18$ with $99.80\%$ classifier label agreement (vs.\ $\text{FID} = 45.31$ for 1D-VAE reconstruction and $\text{FID} = 224.34$ for 1D-VAE prior sampling).}
+\IncludeExpFigure{../experiments/figures/task5_vae_recon_strip.png}{0.48\textwidth}{Stage-1 Spatial Perceptual VAE Compression and Reconstruction}
+\caption{Stage-1 Spatial Perceptual KL-VAE compression ($32\times 32 \to 8\times 8\times 4$, $f=4$) and reconstruction $\hat{\mathbf{x}} = \mathcal{D}(\mathcal{E}(\mathbf{x}))$ achieving near-zero reconstruction $\text{FID} = 0.18$ ($\text{PSNR} = 33.74\text{ dB}$, $99.80\%$ label agreement; Task 5).}
 \label{fig:task5_exp1_vae}
 \end{figure}
 
-\paragraph{Task 5.2: Latent Space Interpolation and Manifold Smoothness.}
-To verify that the learned $8 \times 8 \times 4$ latent space forms a smooth, continuous manifold free of dead zones, we encoded held-out test digit pairs ($3 \to 8$ and $1 \to 7$) into $\mathbf{z}^{(A)} = \mathcal{E}(\mathbf{x}^{(A)})$ and $\mathbf{z}^{(B)} = \mathcal{E}(\mathbf{x}^{(B)})$, decoded linear latent interpolations $\hat{\mathbf{x}}(\lambda) = \mathcal{D}((1-\lambda)\mathbf{z}^{(A)} + \lambda\mathbf{z}^{(B)})$ for $\lambda \in \{0.0, 0.1, \dots, 1.0\}$, and compared them against naive pixel-space blending $(1-\lambda)\mathbf{x}^{(A)} + \lambda\mathbf{x}^{(B)}$ in Figure \ref{fig:task5_exp3_walk}.
-
 \begin{figure}[H]
 \centering
-\IncludeExpFigureTrimTop{../experiments/figures/task5_exp3_latent_interpolation_walk.png}{0.98\textwidth}{Task 5.2: Latent Space Interpolation Walk}{28pt}
-\caption{Latent space geodesic walk vs.\ naive pixel-space blending across $\lambda \in [0.0, 1.0]$ (Task 5.2): (a) Decoding along the latent interpolation line $\mathcal{D}((1-\lambda)\mathbf{z}^{(A)} + \lambda\mathbf{z}^{(B)})$ produces smooth topological stroke morphing ($3 \to 8$ and $1 \to 7$) with zero dead zones, whereas pixel-space blending $(1-\lambda)\mathbf{x}^{(A)} + \lambda\mathbf{x}^{(B)}$ produces ghostly double-exposure overlays; (b) Classifier posterior probability $P(Y \mid \mathcal{D}(\mathbf{z}(\lambda)))$ exhibits a clean, monotonic decision crossing and achieves $21.0\%$ higher midpoint ($\lambda = 0.5$) Laplacian edge sharpness ($0.0877$ for the latent walk vs.\ $0.0725$ for pixel blending).}
+\IncludeExpFigureTrimTop{../experiments/figures/task5_exp3_latent_interpolation_walk.png}{0.80\textwidth}{Latent Space Interpolation Walk}{28pt}
+\caption{Latent space geodesic walk vs.\ naive pixel-space blending across $\lambda \in [0.0, 1.0]$ (Task 5): (a) Decoding along the latent interpolation line $\mathcal{D}((1-\lambda)\mathbf{z}^{(A)} + \lambda\mathbf{z}^{(B)})$ produces smooth topological stroke morphing ($3 \to 8$ and $1 \to 7$) with zero dead zones, whereas pixel-space blending $(1-\lambda)\mathbf{x}^{(A)} + \lambda\mathbf{x}^{(B)}$ produces ghostly double-exposure overlays; (b) Classifier posterior probability $P(Y \mid \mathcal{D}(\mathbf{z}(\lambda)))$ transitions smoothly and achieves $21.0\%$ higher midpoint ($\lambda = 0.5$) Laplacian edge sharpness ($0.0877$ vs.\ $0.0725$).}
 \label{fig:task5_exp3_walk}
 \end{figure}
 
-\paragraph{Task 5.3: Cross-Attention Conditioning and Classifier-Free Guidance (CFG) Scaling.}
-We trained a Multi-Head Cross-Attention Conditioned Latent U-Net (\texttt{ConditionedLatentUNet}) on the normalized $8 \times 8 \times 4$ latents for $15$ epochs ($93.3\text{ s}$, training MSE converging from $0.2270$ to $0.1367$). Here, the conditioning input $y$ is conditioned on discrete target digit class prompts $y \in \{0, 1, \dots, 9\}$ (representing the textual digit categories \texttt{"digit 0"} through \texttt{"digit 9"}), which a learned prompt embedding lookup table $\tau_\theta(y) \in \mathbb{R}^{4 \times 64}$ projects into $M=4$ context tokens of dimension $d_\tau = 64$ that feed the Key and Value projections ($\mathbf{K}, \mathbf{V}$) of the cross-attention layers across the Down, Mid, and Up U-Net stages, while index $10$ serves as the unconditional null token $\varnothing$ dropped out with probability $p_{\text{uncond}} = 0.15$ during training. Figure \ref{fig:task5_exp4_cfg} evaluates $200$ generated samples per scale ($20$ per target digit prompt $y \in \{0, \dots, 9\}$) synthesized from identical initial noise $\mathbf{z}_T$ across CFG scales $\alpha \in \{1.0, 3.0, 7.5, 15.0\}$ using Equation \eqref{eq:cfg_guidance}.
+\paragraph{Cross-Attention Conditioning and Classifier-Free Guidance (CFG) Scaling.}
+We trained a Multi-Head Cross-Attention Conditioned Latent U-Net (\texttt{ConditionedLatentUNet}) on the normalized $8 \times 8 \times 4$ latents for $15$ epochs ($93.3\text{ s}$). The conditioning input $y$ is conditioned on discrete target digit class prompts $y \in \{0, 1, \dots, 9\}$ (representing \texttt{"digit 0"} through \texttt{"digit 9"}), which a learned prompt embedding lookup table $\tau_\theta(y) \in \mathbb{R}^{4 \times 64}$ projects into $M=4$ context tokens ($d_\tau = 64$) feeding the Key and Value projections ($\mathbf{K}, \mathbf{V}$) of the cross-attention blocks across the Down, Mid, and Up U-Net stages, while index $10$ serves as the unconditional null token $\varnothing$ ($p_{\text{uncond}} = 0.15$). Figure \ref{fig:task5_exp4_cfg} evaluates $200$ generated samples per scale ($20$ per prompt $y \in \{0, \dots, 9\}$) synthesized from identical initial noise $\mathbf{z}_T$ across CFG scales $\alpha \in \{1.0, 3.0, 7.5, 15.0\}$ using Equation \eqref{eq:cfg_guidance}.
 
 \begin{figure}[H]
 \centering
-\IncludeExpFigureTrimTop{../experiments/figures/task5_exp4_cfg_scaling_test.png}{0.98\textwidth}{Task 5.3: Classifier-Free Guidance Scaling Test}{28pt}
-\caption{Classifier-Free Guidance (CFG) scaling evaluation conditioned on target digit prompts $y \in \{0, \dots, 9\}$ (\texttt{"digit 0"}--\texttt{"digit 9"}, $\tau_\theta(y) \in \mathbb{R}^{4\times 64}$, null token $\varnothing$ dropout $p_{\text{uncond}}=0.15$) across $\alpha \in \{1.0, 3.0, 7.5, 15.0\}$ from identical initial noise seeds (Task 5.3): Unamplified conditioning ($\alpha = 1.0$) yields $94.0\%$ prompt adherence accuracy, $93.1\%$ target confidence, $\text{FID} = 27.92$, and $4.52\%$ extreme latent saturation ($|\mathbf{z}| > 2.2$); moderate CFG ($\alpha = 3.0$) achieves $100.0\%$ prompt accuracy, $99.9\%$ confidence, $\text{FID} = 71.20$, and $5.62\%$ saturation; standard CFG ($\alpha = 7.5$) achieves $99.5\%$ prompt accuracy, $99.6\%$ confidence, $\text{FID} = 94.16$, and $7.42\%$ saturation; excessive guidance ($\alpha = 15.0$) maintains $99.5\%$ accuracy ($96.9\%$ confidence) but causes extreme latent saturation to spike to $10.52\%$ and degrades $\text{FID}$ to $141.97$ with clipped stroke artifacts.}
+\IncludeExpFigure{../experiments/figures/task5_exp4_cfg_scaling_cropped.png}{0.80\textwidth}{Classifier-Free Guidance Scaling Test}
+\caption{Classifier-Free Guidance (CFG) scaling evaluation conditioned on target digit prompts $y \in \{0, \dots, 9\}$ (\texttt{"digit 0"}--\texttt{"digit 9"}, $\tau_\theta(y) \in \mathbb{R}^{4\times 64}$, null token $\varnothing$ dropout $p_{\text{uncond}}=0.15$) across $\alpha \in \{1.0, 3.0, 7.5, 15.0\}$ from identical initial noise seeds (Task 5): Unamplified conditioning ($\alpha = 1.0$) yields $94.0\%$ prompt adherence accuracy ($93.1\%$ target confidence); moderate and standard CFG ($\alpha = 3.0$ and $\alpha = 7.5$) achieve $100.0\%$ and $99.5\%$ prompt accuracy ($99.9\%$ and $99.6\%$ confidence) with crisp digit strokes; excessive guidance ($\alpha = 15.0$) maintains $99.5\%$ accuracy ($96.9\%$ confidence) but induces oversaturated, clipped stroke artifacts.}
 \label{fig:task5_exp4_cfg}
 \end{figure}
 
 \subsection{Pixel-Space vs.\ Latent-Space Comparative Evaluation (Task 6)}
 \label{sec:res_task6}
 
-\paragraph{Task 6.1: Pixel-Space vs.\ Latent-Space Training and Memory Efficiency ($32\times 32$ Pixel U-Net vs.\ $8\times 8$ Latent U-Net).}
-To directly quantify how Latent Diffusion resolves the computational bottleneck of Pixel Diffusion (Task 6), we trained two architecturally identical U-Nets (\texttt{BenchmarkUNet}, base channels $C=64$, identical ResBlocks and Self-Attention layers, $T=200$, batch size $128$, $6$ epochs on $60{,}000$ images): Model A operates directly on $32 \times 32 \times 1$ pixel images ($1{,}024$ spatial locations), whereas Model B operates on pre-encoded $8 \times 8 \times 4$ VAE latent tensors ($64$ spatial locations, a $16\times$ smaller spatial grid); Figure \ref{fig:task6_exp2_efficiency} presents the measured training speed, activation memory, and convergence trajectories.
+To directly quantify how Latent Diffusion resolves the computational bottleneck of Pixel Diffusion (Task 6), we trained two architecturally identical U-Nets (\texttt{BenchmarkUNet}, base channels $C=64$, $T=200$, batch size $128$, $6$ epochs on $60{,}000$ images): Model A operates directly on $32 \times 32 \times 1$ pixel images ($1{,}024$ spatial locations), whereas Model B operates on pre-encoded $8 \times 8 \times 4$ VAE latent tensors ($64$ spatial locations, a $16\times$ smaller spatial grid). Figure \ref{fig:task6_exp2_efficiency} presents the measured training speed, activation memory, and convergence trajectories, and Table \ref{tab:pixel_vs_latent_evidence} summarizes the comparison across six explicit criteria.
 
 \begin{figure}[H]
 \centering
-\IncludeExpFigureTrimTop{../experiments/figures/task6_exp2_latent_vs_pixel_training_efficiency.png}{0.98\textwidth}{Task 6.1: Latent vs. Pixel Space Training Efficiency}{28pt}
-\caption{Apples-to-apples training and memory efficiency benchmark comparing architecturally identical U-Nets on $32\times 32\times 1$ pixels (Model A, $1{,}024$ spatial locations) vs.\ $8\times 8\times 4$ VAE latents (Model B, $64$ spatial locations) across $6$ epochs on $60{,}000$ images (Task 6.1): (a) Model B achieves a \textbf{$7.61\times$ training speedup per epoch} ($6.75\text{ s/epoch}$ vs.\ $51.42\text{ s/epoch}$; throughput $8{,}882\text{ img/s}$ vs.\ $1{,}167\text{ img/s}$); (b) Model B reduces peak GPU activation VRAM by \textbf{$13.81\times$} ($83.4\text{ MB}$ vs.\ $1{,}151.7\text{ MB}$); (c) Model B completes all $6$ epochs ($40.5\text{ s}$ total) before Model A finishes a single epoch ($51.42\text{ s}$; $308.5\text{ s}$ total for $6$ epochs).}
+\IncludeExpFigureTrimTop{../experiments/figures/task6_exp2_latent_vs_pixel_training_efficiency.png}{0.82\textwidth}{Latent vs. Pixel Space Training Efficiency}{28pt}
+\caption{Training and memory efficiency benchmark comparing architecturally identical U-Nets on $32\times 32\times 1$ pixels (Model A, $1{,}024$ locations) vs.\ $8\times 8\times 4$ VAE latents (Model B, $64$ locations) across $6$ epochs on $60{,}000$ images (Task 6): (a) Model B achieves a \textbf{$7.61\times$ speedup per epoch} ($6.75\text{ s/epoch}$ vs.\ $51.42\text{ s/epoch}$; $8{,}882$ vs.\ $1{,}167\text{ img/s}$); (b) Model B reduces peak GPU activation VRAM by \textbf{$13.81\times$} ($83.4\text{ MB}$ vs.\ $1{,}151.7\text{ MB}$); (c) Model B completes all $6$ epochs ($40.5\text{ s}$ total) before Model A finishes $1$ epoch ($51.42\text{ s}$; $308.5\text{ s}$ total).}
 \label{fig:task6_exp2_efficiency}
 \end{figure}
 
-Table \ref{tab:pixel_vs_latent_evidence} synthesizes theoretical, literature, and our empirical benchmark evidence comparing pixel-space DDPM and latent-space LDM across six explicit criteria (Task 6).
-
-\begin{table}[htbp]
+\begin{table}[H]
 \centering
-\caption{Evidence-supported comparison between Pixel-Space Diffusion (DDPM) and Latent Diffusion (LDM) across six explicit criteria (Task 6: Literature benchmarks \cite{ho2020denoising, rombach2022high} and our empirical benchmark).}
+\caption{Concise comparison between Pixel-Space Diffusion (DDPM) and Latent Diffusion (LDM) across six explicit criteria (Task 6).}
 \label{tab:pixel_vs_latent_evidence}
 \footnotesize
-\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{2.7cm} >{\raggedright\arraybackslash}p{3.1cm} >{\raggedright\arraybackslash}p{3.1cm} X}
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{3.3cm} >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X}
 \toprule
-Explicit Criterion & Pixel-Space Diffusion (DDPM / Model A) & Latent Diffusion Model (LDM-$f$ / Model B) & Quantitative Evidence \& Explanation \\
+Explicit Criterion & Pixel-Space Diffusion (DDPM / Model A) & Latent Diffusion Model (LDM / Model B) \\
 \midrule
-1. Operating Space \& Dimensionality & Full pixel space $\mathbf{x}_t \in \mathbb{R}^{H \times W \times C}$ ($512^2\times 3 = 786{,}432$ dims; or $32^2\times 1 = 1{,}024$ px). & Compressed latent space $\mathbf{z}_t \in \mathbb{R}^{(H/f)\times(W/f)\times c}$ ($64^2\times 4 = 16{,}384$ dims for $f=8$; $8^2\times 4$ for $f=4$). & Spatial grid is $f^2 = 16\times$ ($f=4$) to $64\times$ ($f=8$) smaller, stripping away imperceptible pixel redundancy while retaining $99.80\%$ semantic agreement (Figure \ref{fig:task5_exp1_vae}) \cite{rombach2022high}. \\
-\addlinespace[0.25em]
-2. Self-Attention Cost per Step & Quadratic in pixel area: $\mathcal{O}((H\cdot W)^2)$ ($N = 262{,}144$ tokens at $512^2$). & Quadratic in latent grid: $\frac{1}{f^4}\mathcal{O}((H\cdot W)^2)$ ($N = 4{,}096$ tokens at $f=8$). & Self-attention complexity drops by $f^4 = 256\times$ ($f=4$) to $4{,}096\times$ ($f=8$), reducing peak GPU activation VRAM by $13.81\times$ ($83.4\text{ MB}$ vs.\ $1{,}151.7\text{ MB}$) in Figure \ref{fig:task6_exp2_efficiency}. \\
-\addlinespace[0.25em]
-3. Training Speed \& Compute Cost & Slow: $51.42\text{ s/epoch}$ ($1{,}167\text{ img/s}$) in Model A; $150$--$1{,}000$ V100 GPU-days at $256^2$--$512^2$. & $7.61\times$ faster in Model B: $6.75\text{ s/epoch}$ ($8{,}882\text{ img/s}$); $30$--$100$ V100 GPU-days at $256^2$--$512^2$. & Model B finishes $6$ latent epochs ($40.5\text{ s}$) in less time than $1$ pixel epoch ($51.42\text{ s}$, Figure \ref{fig:task6_exp2_efficiency}), matching Rombach et al.'s $\ge 2.7\times$--$5\times$ convergence speedup \cite{rombach2022high}. \\
-\addlinespace[0.25em]
-4. Sampling Speed (Throughput) & Slow: $T$ sequential full-res U-Net passes ($3{,}926.8\text{ ms}$ / $3.93\text{ s}$ per $64$ MNIST imgs; $2.29\text{ s}$ on $256^2$ CelebA-HQ). & $1.28\times$ to $7.6\times$ higher throughput on compact latent $\mathbf{z}_t$ ($1.78\text{ s}$ on $256^2$ CelebA-HQ) plus $1$ fast decoder pass $\mathcal{D}(\hat{\mathbf{z}}_0)$. & Operating on $8\times 8$ or $64\times 64$ latents combined with DDIM \cite{song2021denoising} markedly accelerates synthesis throughput over pixel-space diffusion. \\
-\addlinespace[0.25em]
-5. Visual Generation Quality (FID $\downarrow$) & Strong at low resolution (CIFAR-10 $32^2$: FID $3.17$ \cite{ho2020denoising}; MNIST: FID $16.85$), compute-limited at $512^2$. & SOTA at high resolution (CelebA-HQ $256^2$: FID $5.11$ \cite{rombach2022high}); Stage-1 VAE achieves PSNR $33.74\text{ dB}$, FID $0.18$. & Perceptual VAE compression preserves semantic structure (FID $0.18$, Figure \ref{fig:task5_exp1_vae}), allowing the latent U-Net to dedicate full capacity to global composition. \\
-\addlinespace[0.25em]
-6. Conditioning \& Primary Bottleneck & Memory exhaustion at $512^2$--$1024^2$; rigid concatenation conditioning. & Flexible Cross-Attention $\tau_\theta(y)$ ($99.5\%$--$100\%$ prompt accuracy at CFG $\alpha \in [3.0, 7.5]$). & Bounded by frozen VAE reconstruction ceiling if $f \ge 16$ and latent oversaturation ($10.52\%$) if CFG scale $\alpha \ge 15.0$ (Figure \ref{fig:task5_exp4_cfg}) \cite{rombach2022high}. \\
+1. Operating Space & Full pixel tensor $\mathbf{x}_t \in \mathbb{R}^{H \times W \times C}$ ($32\times 32\times 1$, $1{,}024$ px). & Compressed latent $\mathbf{z}_t \in \mathbb{R}^{(H/f)\times(W/f)\times c}$ ($8\times 8\times 4$, $f=4$, $16\times$ smaller grid). \\
+\addlinespace[0.15em]
+2. Attention \& Memory & $\mathcal{O}((H\cdot W)^2)$ self-attention; $1{,}151.7\text{ MB}$ activation VRAM. & $\frac{1}{f^4}\mathcal{O}((H\cdot W)^2)$ cost ($256\times$ reduction); $83.4\text{ MB}$ VRAM ($13.81\times$ lower). \\
+\addlinespace[0.15em]
+3. Training Speed & Slow: $51.42\text{ s/epoch}$ ($1{,}167\text{ img/s}$; $308.5\text{ s}$ for $6$ epochs). & Fast: $6.75\text{ s/epoch}$ ($8{,}882\text{ img/s}$; $40.5\text{ s}$ for $6$ epochs, $7.61\times$ faster). \\
+\addlinespace[0.15em]
+4. Sampling Throughput & Slow: $T$ full-res U-Net passes ($3.93\text{ s}$ / $64$ MNIST imgs). & Fast: denoising on compact $\mathbf{z}_t$ plus $1$ fast decoder pass $\mathcal{D}(\hat{\mathbf{z}}_0)$. \\
+\addlinespace[0.15em]
+5. Sample Quality & High at low resolution (MNIST FID $16.85$; CIFAR-10 FID $3.17$ \cite{ho2020denoising}). & High at high resolution (CelebA-HQ FID $5.11$ \cite{rombach2022high}; Stage-1 VAE FID $0.18$). \\
+\addlinespace[0.15em]
+6. Conditioning \& Limit & Rigid concatenation; memory-bound at high resolution. & Flexible cross-attention ($99.5\%$--$100\%$ accuracy at $\alpha \in [3.0, 7.5]$); bounded by frozen VAE. \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -607,9 +617,9 @@ Explicit Criterion & Pixel-Space Diffusion (DDPM / Model A) & Latent Diffusion M
 \label{sec:limitations}
 
 Despite their empirical success, diffusion models present notable technical and ethical challenges:
-\begin{enumerate}[leftmargin=1.8em, itemsep=0.3em]
+\begin{enumerate}[leftmargin=1.8em, itemsep=0.12em, topsep=0.2em]
     \item \textit{Sequential Sampling Latency:} The Markovian reverse chain requires tens to hundreds of sequential network evaluations. While non-Markovian solvers such as DDIM \cite{song2021denoising}, DPM-Solver \cite{lu2022dpm}, and flow-matching distillation \cite{lipman2023flow, salimans2022progressive} reduce steps to $1$--$4$, distilled models can exhibit mode loss and degraded fine details.
-    \item \textit{Prompt Binding, Compositional Reasoning, and CFG Oversaturation:} Cross-attention diffusion models frequently struggle with compositional prompts involving spatial relations or multi-object attribute binding, and as shown in Section \ref{sec:res_task5} (Figure \ref{fig:task5_exp4_cfg}), aggressive Classifier-Free Guidance ($\alpha = 15.0$) causes extreme latent saturation ($10.52\%$) and severe FID degradation ($141.97$).
+    \item \textit{Prompt Binding, Compositional Reasoning, and CFG Oversaturation:} Cross-attention diffusion models frequently struggle with compositional prompts involving spatial relations or multi-object attribute binding, and as shown in Section \ref{sec:res_task5} (Figure \ref{fig:task5_exp4_cfg}), aggressive Classifier-Free Guidance ($\alpha = 15.0$) induces oversaturated stroke artifacts.
     \item \textit{Training Data Memorization and Copyright:} Carlini et al.\ \cite{carlini2023extracting} demonstrated that diffusion models can memorize duplicated training images and regurgitate near-exact copyrighted works when prompted, raising critical intellectual property concerns.
     \item \textit{Societal Bias and Representational Disparity:} Because web-scale training corpora reflect prevailing societal stereotypes, unconditional and text-guided diffusion models can amplify racial, gender, and cultural biases, necessitating active algorithmic debiasing and dataset curation.
 \end{enumerate}
@@ -620,24 +630,20 @@ Despite their empirical success, diffusion models present notable technical and 
 \section{Conclusion}
 \label{sec:conclusion}
 
-This report investigated the guiding question: \textit{how can learning to remove noise enable a model to generate new images, and why does moving diffusion into a learned latent space resolve its computational bottleneck?}
-
-Our theoretical derivations, numerical worked example, and empirical Colab GPU benchmarks demonstrate that:
-\begin{enumerate}[leftmargin=1.8em, itemsep=0.25em]
-    \item By decomposing generative modeling into a variance-preserving forward Gaussian corruption process and a learned reverse denoising chain, DDPM resolves the traditional generative trilemma, achieving superior sample sharpness ($\text{LapVar} = 0.0601$, $\text{FID} = 16.85$) while maintaining full mode coverage.
+This report investigated how learning to remove noise enables image generation and why latent diffusion resolves the computational bottleneck of pixel-space diffusion. Our theoretical derivations, numerical worked example, and empirical benchmarks demonstrate that:
+\begin{enumerate}[leftmargin=1.8em, itemsep=0.12em, topsep=0.2em]
+    \item By decomposing generative modeling into a variance-preserving forward Gaussian corruption process and a learned reverse denoising chain, DDPM resolves the generative trilemma, achieving superior sample sharpness ($\text{LapVar} = 0.0601$, $\text{FID} = 16.85$) while maintaining full mode coverage.
     \item Parameterizing the reverse transition mean via noise prediction $\bm{\epsilon}_\theta$ connects diffusion directly to Tweedie's formula and score-based modeling, while the unweighted objective $L_{\text{simple}}$ acts as a stable variational bound that prioritizes perceptual image structure.
-    \item Latent Diffusion Models (LDM) overcome the computational bottleneck of pixel-space diffusion by separating perceptual spatial compression ($\text{PSNR} = 33.74\text{ dB}$, $\text{FID} = 0.18$, $99.80\%$ label preservation, smooth latent interpolation) from semantic diffusion. Training an identical U-Net in the $8 \times 8$ latent space accelerates training by $7.61\times$ per epoch, reduces GPU activation memory by $13.81\times$, and enables accurate cross-attention prompt steering ($99.5\%$--$100.0\%$ adherence at $\alpha \in [3.0, 7.5]$).
+    \item Latent Diffusion Models (LDM) overcome the computational bottleneck of pixel-space diffusion by separating perceptual spatial compression ($\text{FID} = 0.18$, $\text{PSNR} = 33.74\text{ dB}$, smooth latent interpolation) from semantic diffusion, accelerating U-Net training by $7.61\times$ per epoch, reducing GPU activation memory by $13.81\times$, and enabling accurate cross-attention prompt steering ($99.5\%$--$100.0\%$ adherence at $\alpha \in [3.0, 7.5]$).
 \end{enumerate}
-
-\vspace{0.6em}
-\noindent\textit{Dataset, Tool, and Independent Verification Disclosure (Section VI Compliance):}
-In compliance with the seminar integrity guidelines, all numerical worked examples, experimental comparisons, and figures were implemented and verified independently on an NVIDIA Tesla T4 GPU using PyTorch, HuggingFace Diffusers, and torchvision (\nolinkurl{experiments/task1_generative_paradigms_comparison.ipynb} and \nolinkurl{experiments/task5_6_ldm_4_experiments.ipynb}). Pretrained checkpoints from Ho et al.\ (2020) and Rombach et al.\ (2022) were utilized strictly for comparative validation.
 
 % ==============================================================================
 % REFERENCES
 % ==============================================================================
 \begin{thebibliography}{17}
-\small
+\footnotesize
+\setlength{\itemsep}{0.6pt}
+\setlength{\parskip}{0pt}
 
 \bibitem{ho2020denoising}
 J.~Ho, A.~Jain, and P.~Abbeel, ``Denoising Diffusion Probabilistic Models,'' in \textit{Advances in Neural Information Processing Systems (NeurIPS)}, vol.~33, pp.~6840-6851, 2020.
