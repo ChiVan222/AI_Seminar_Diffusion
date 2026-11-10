@@ -20,6 +20,8 @@ data/
 *.toc
 *.bbl
 *.blg
-*.synctex.gz
+*.synctex*
 *.fls
 *.fdb_latexmk
+build/
+report/build/
