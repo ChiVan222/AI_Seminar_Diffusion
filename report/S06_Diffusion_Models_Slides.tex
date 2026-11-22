@@ -97,7 +97,7 @@
 \end{frame}
 
 % ==================================================================
-\begin{frame}{Task 1 --- Discriminative vs.\ Generative Models}
+\begin{frame}{Discriminative vs.\ Generative Models}
   \begin{columns}[T,onlytextwidth]
     \begin{column}{0.45\textwidth}
       \begin{itemize}
@@ -148,7 +148,7 @@
 \end{frame}
 
 % ==================================================================
-\begin{frame}{Task 2 --- Forward Noising and Reverse Denoising}
+\begin{frame}{Forward Noising and Reverse Denoising}
   \centering
   \resizebox{0.95\textwidth}{!}{%
   \begin{tikzpicture}[
@@ -192,7 +192,7 @@
 \end{frame}
 
 % ==================================================================
-\begin{frame}{Task 2 --- Training and Sampling Algorithms}
+\begin{frame}{Training and Sampling Algorithms}
   \begin{columns}[T,onlytextwidth]
     \begin{column}{0.47\textwidth}
       \Head{Algorithm 1: Training}
@@ -226,7 +226,7 @@
 \end{frame}
 
 % ==================================================================
-\begin{frame}{Task 3 --- A 1D Worked Example}
+\begin{frame}{A 1D Worked Example}
   \begin{columns}[T,onlytextwidth]
     \begin{column}{0.4\textwidth}
       \Head{Symbols}
@@ -266,7 +266,7 @@
 \end{frame}
 
 % ==================================================================
-\begin{frame}{Tasks 1 \& 4 --- Experiments on MNIST}
+\begin{frame}{Experiments on MNIST}
   \begin{columns}[T,onlytextwidth]
     \begin{column}{0.5\textwidth}
       \Head{Same data, four model families}
@@ -296,7 +296,7 @@
       \end{itemize}
     \end{column}
     \begin{column}{0.47\textwidth}
-      \Head{Task 4: noising and denoising}
+      \Head{Noising and denoising}
       \vspace{0.15cm}
 
       \centering
@@ -311,37 +311,33 @@
 \end{frame}
 
 % ==================================================================
-\begin{frame}{Task 5 --- Latent Diffusion Models \cite{rombach2022high}}
-  \centering
-  \resizebox{0.85\textwidth}{!}{%
-  \begin{tikzpicture}[
-      b/.style={draw=Main, fill=Soft, thick, rounded corners=2pt, minimum height=0.85cm, minimum width=1.9cm, align=center, font=\small},
-      a/.style={-{Stealth}, thick, Main}]
-    \node[b] (x) {Image $\mathbf{x}$};
-    \node[b, right=0.6cm of x] (E) {Encoder $\mathcal{E}$};
-    \node[b, right=0.6cm of E, fill=Accent!12, draw=Accent] (z) {Diffusion on\\latent $\mathbf{z}$};
-    \node[b, right=0.6cm of z] (D) {Decoder $\mathcal{D}$};
-    \node[b, right=0.6cm of D] (o) {Image $\hat{\mathbf{x}}$};
-    \node[b, above=0.4cm of z, fill=Warn!8, draw=Warn] (y) {Prompt $y\to\tau_\theta(y)$};
-    \draw[a] (x)--(E); \draw[a] (E)--(z); \draw[a] (z)--(D); \draw[a] (D)--(o);
-    \draw[a, Warn] (y)--node[right, font=\scriptsize]{cross-attention}(z);
-    \node[below=0.1cm of E, font=\scriptsize, black!70] {downsample by $f$};
-  \end{tikzpicture}}
+\begin{frame}{Latent Diffusion Models \cite{rombach2022high}}
+  \begin{columns}[T,onlytextwidth]
+    \begin{column}{0.55\textwidth}
+      \centering
+      \Fig{ldm_paper_fig3.png}{width=\linewidth}
 
-  \raggedright
-  \begin{enumerate}\setlength{\itemsep}{1pt}
-    \item \textbf{Compress:} an autoencoder maps the image to a small latent grid and discards fine pixel detail we cannot perceive.
-    \item \textbf{Diffuse in latent space:} the same DDPM runs on $\mathbf{z}$. Attention cost drops by about $f^4$.
-    \item \textbf{Condition:} prompt tokens act as keys/values in cross-attention,
-      $\ \text{softmax}\!\big(\mathbf{Q}\mathbf{K}^\top/\sqrt{d}\big)\mathbf{V}$.
-  \end{enumerate}
+      \vspace{0.08cm}
+      \scriptsize\color{black!70} Architecture diagram from Rombach et al.~\cite{rombach2022high} (Fig.~3).
+    \end{column}
+    \begin{column}{0.42\textwidth}
+      \begin{enumerate}\setlength{\itemsep}{4pt}
+        \item \textbf{Compress:} encoder $\mathcal{E}$ maps $\mathbf{x}$ to a compact latent $\mathbf{z}$, discarding imperceptible detail.
+        \item \textbf{Diffuse in latent space:} DDPM runs on $\mathbf{z}$; attention cost drops by $\approx f^4$.
+        \item \textbf{Condition:} conditioning tokens $\tau_\theta(y)$ feed cross-attention,
+          $\ \text{softmax}\!\big(\mathbf{Q}\mathbf{K}^\top/\sqrt{d}\big)\mathbf{V}$.
+      \end{enumerate}
+    \end{column}
+  \end{columns}
+
+  \vspace{0.15cm}
   \Head{Classifier-free guidance} (scale $\alpha$) pushes samples toward the prompt:
   \vspace{-0.15cm}
   \[ \tilde{\bm\epsilon} = \bm\epsilon_\theta(\mathbf{z}_t,\varnothing) + \alpha\,\big(\bm\epsilon_\theta(\mathbf{z}_t,y) - \bm\epsilon_\theta(\mathbf{z}_t,\varnothing)\big) \]
 \end{frame}
 
 % ==================================================================
-\begin{frame}{Task 5 --- Our Latent Diffusion Results}
+\begin{frame}{Our Latent Diffusion Results}
   \begin{columns}[T,onlytextwidth]
     \begin{column}{0.47\textwidth}
       \Head{Stage 1: VAE, $32{\times}32 \rightarrow 8{\times}8{\times}4$}
@@ -387,7 +383,7 @@
 \end{frame}
 
 % ==================================================================
-\begin{frame}{Task 6 --- Pixel-Space vs.\ Latent-Space Diffusion}
+\begin{frame}{Pixel-Space vs.\ Latent-Space Diffusion}
   \small
   Same U-Net design, same data and training setup; only the space changes (T4 GPU).
 
