@@ -307,25 +307,12 @@
 
 % ==================================================================
 \begin{frame}{Latent Diffusion Models \cite{rombach2022high}}
-  \begin{columns}[T,onlytextwidth]
-    \begin{column}{0.55\textwidth}
-      \centering
-      \Fig{ldm_paper_fig3.png}{width=\linewidth}
+  \centering
+  \Fig{ldm_paper_fig3.png}{height=4.5cm,keepaspectratio}\\[4pt]
+  {\scriptsize\color{black!70} Architecture diagram from Rombach et al.~\cite{rombach2022high} (Fig.~3).}
 
-      \vspace{0.08cm}
-      \scriptsize\color{black!70} Architecture diagram from Rombach et al.~\cite{rombach2022high} (Fig.~3).
-    \end{column}
-    \begin{column}{0.42\textwidth}
-      \begin{enumerate}\setlength{\itemsep}{4pt}
-        \item \textbf{Compress:} encoder $\mathcal{E}$ maps $\mathbf{x}$ to a compact latent $\mathbf{z}$, discarding imperceptible detail.
-        \item \textbf{Diffuse in latent space:} DDPM runs on $\mathbf{z}$; attention cost drops by $\approx f^4$.
-        \item \textbf{Condition:} conditioning tokens $\tau_\theta(y)$ feed cross-attention,
-          $\ \text{softmax}\!\big(\mathbf{Q}\mathbf{K}^\top/\sqrt{d}\big)\mathbf{V}$.
-      \end{enumerate}
-    \end{column}
-  \end{columns}
-
-  \vspace{0.15cm}
+  \vspace{0.3cm}
+  \raggedright
   \Head{Classifier-free guidance} (scale $\alpha$) pushes samples toward the prompt:
   \vspace{-0.15cm}
   \[ \tilde{\bm\epsilon} = \bm\epsilon_\theta(\mathbf{z}_t,\varnothing) + \alpha\,\big(\bm\epsilon_\theta(\mathbf{z}_t,y) - \bm\epsilon_\theta(\mathbf{z}_t,\varnothing)\big) \]
