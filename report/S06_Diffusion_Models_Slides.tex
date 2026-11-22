@@ -70,7 +70,7 @@
 \begin{frame}{Problem \& Guiding Question}
   \Head{Goal of generative modeling:} learn the data distribution $p(\mathbf{x})$ so we can sample \emph{new} images.
 
-  \vspace{0.15cm}
+  \vspace{0.25cm}
   \Head{Earlier approaches each give something up:}
   \begin{itemize}
     \item \textbf{VAEs} are fast, but samples are blurry.
@@ -78,17 +78,18 @@
     \item \textbf{Autoregressive models} are exact, but generate one pixel at a time.
   \end{itemize}
 
-  \vspace{0.15cm}
+  \vspace{-0.4cm}
   \begin{center}
-    \colorbox{Soft}{\parbox{0.9\textwidth}{\centering\vspace{3pt}
+    \colorbox{Soft}{\parbox{\textwidth}{\centering\vspace{3pt}
       \textit{How can learning to remove noise step by step let a network generate images, and why does moving this process into a latent space make it much cheaper?}\vspace{3pt}}}
   \end{center}
 
   \vspace{0.05cm}
   \small
-  \textbf{Papers:} DDPM, Ho et al., NeurIPS 2020 \cite{ho2020denoising} (required) \;$\cdot$\;
+  \textbf{Papers:} \\ DDPM, Ho et al., NeurIPS 2020 \cite{ho2020denoising} \;$\cdot$\;
   Latent Diffusion, Rombach et al., CVPR 2022 \cite{rombach2022high}\\
-  \textbf{Our experiments:} re-implemented on MNIST, trained on one NVIDIA T4 GPU.
+  \textbf{Our experiments:} \\
+  Re-implemented on MNIST, trained on one NVIDIA T4 GPU.
 \end{frame}
 
 % ==================================================================
@@ -101,7 +102,7 @@
       \end{itemize}
       \vspace{0.15cm}
       \centering
-      \begin{tikzpicture}[scale=0.62]
+      \begin{tikzpicture}[scale=0.9]
         \draw[Main, thick] (0,0) rectangle (3,2.4);
         \draw[Warn, thick, dashed] (0.2,0.1) -- (2.8,2.3);
         \foreach \p in {(0.6,1.7),(0.9,1.9),(0.5,1.4),(1.0,1.5)} \fill[Main] \p circle (2.5pt);
@@ -207,10 +208,8 @@
       \vspace{0.1cm}
       \begin{enumerate}
         \item Start from pure noise $\mathbf{x}_T\sim\mathcal{N}(\mathbf{0},\mathbf{I})$
-        \item For $t=T,\dots,1$, remove the predicted noise:
-      \end{enumerate}
+        \item For $t=T,\dots,1$, \\ remove the predicted noise:
       \[ \mathbf{x}_{t-1}=\tfrac{1}{\sqrt{\alpha_t}}\Big(\mathbf{x}_t-\tfrac{\beta_t}{\sqrt{1-\bar\alpha_t}}\bm\epsilon_\theta(\mathbf{x}_t,t)\Big)+\sigma_t\mathbf{z} \]
-      \begin{enumerate}\setcounter{enumi}{2}
         \item Return $\mathbf{x}_0$
       \end{enumerate}
       \vspace{0.05cm}
@@ -241,7 +240,10 @@
       \end{tabular}
 
       \vspace{0.25cm}
-      \textbf{Given:} $x_0=0.80$, $\beta_1=0.19$, $\epsilon=-0.50$\\
+      \textbf{Given:} 
+      \vspace{0.25cm}
+      \\ $x_0=0.80$, $\beta_1=0.19$, $\epsilon=-0.50$\\
+      \vspace{0.25cm}
       $\Rightarrow\ \sqrt{\bar\alpha_1}=0.90,\ \sqrt{1-\bar\alpha_1}=0.436$
     \end{column}
     \begin{column}{0.56\textwidth}
