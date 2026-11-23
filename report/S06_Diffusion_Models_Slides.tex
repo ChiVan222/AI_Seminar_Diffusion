@@ -70,24 +70,17 @@
 \begin{frame}{Problem \& Guiding Question}
   \Head{Goal of generative modeling:} learn the data distribution $p(\mathbf{x})$ so we can sample \emph{new} images.
 
-  \vspace{0.25cm}
-  \Head{Earlier approaches each give something up:}
-  \begin{itemize}
-    \item \textbf{VAEs} are fast, but samples are blurry.
-    \item \textbf{GANs} are sharp, but training is unstable and they miss modes.
-    \item \textbf{Autoregressive models} are exact, but generate one pixel at a time.
-  \end{itemize}
-
-  \vspace{-0.4cm}
+  \vspace{0.45cm}
   \begin{center}
-    \colorbox{Soft}{\parbox{\textwidth}{\centering\vspace{3pt}
-      \textit{How can learning to remove noise step by step let a network generate images, and why does moving this process into a latent space make it much cheaper?}\vspace{3pt}}}
+    \colorbox{Soft}{\parbox{\dimexpr\textwidth-2\fboxsep\relax}{\centering\vspace{5pt}
+      \textit{How can learning to remove noise step by step let a network generate images, and why does moving this process into a latent space make it much cheaper?}\vspace{5pt}}}
   \end{center}
 
-  \vspace{0.05cm}
+  \vspace{0.35cm}
   \small
   \textbf{Papers:} \\ DDPM, Ho et al., NeurIPS 2020 \cite{ho2020denoising} \;$\cdot$\;
   Latent Diffusion, Rombach et al., CVPR 2022 \cite{rombach2022high}\\
+  \vspace{0.1cm}
   \textbf{Our experiments:} \\
   Re-implemented on MNIST, trained on one NVIDIA T4 GPU.
 \end{frame}
@@ -210,6 +203,7 @@
         \item Start from pure noise $\mathbf{x}_T\sim\mathcal{N}(\mathbf{0},\mathbf{I})$
         \item For $t=T,\dots,1$, \\ remove the predicted noise:
       \[ \mathbf{x}_{t-1}=\tfrac{1}{\sqrt{\alpha_t}}\Big(\mathbf{x}_t-\tfrac{\beta_t}{\sqrt{1-\bar\alpha_t}}\bm\epsilon_\theta(\mathbf{x}_t,t)\Big)+\sigma_t\mathbf{z} \]
+        \par\vspace{-0.18cm}\noindent{\scriptsize $\mathbf{z}\sim\mathcal{N}(\mathbf{0},\mathbf{I})$ if $t>1$, else $\mathbf{z}=\mathbf{0}$ (zero variance for $\mathbf{x}_0$)}
         \item Return $\mathbf{x}_0$
       \end{enumerate}
       \vspace{0.05cm}
@@ -326,21 +320,116 @@
 \end{frame}
 
 % ==================================================================
-\begin{frame}{Operations in Latent Space: Interpolation}
-  \Head{Latent linear walk} on our Stage-1 Spatial VAE ($32{\times}32 \rightarrow 8{\times}8{\times}4$, recon.\ FID $0.18$):
-  \vspace{-0.18cm}
-  \[ \hat{\mathbf{x}}(\lambda) = \mathcal{D}\big((1-\lambda)\,\mathbf{z}^{(A)} + \lambda\,\mathbf{z}^{(B)}\big), \quad \mathbf{z}^{(A)}=\mathcal{E}(\mathbf{x}^{(A)}),\ \mathbf{z}^{(B)}=\mathcal{E}(\mathbf{x}^{(B)}) \]
+\begin{frame}{Conditioning: Cross-Attention vs.\ Concatenation \cite{rombach2022high}}
+  \begin{columns}[T,onlytextwidth]
+    \begin{column}{0.48\textwidth}
+      \Head{Cross-attention} (via $\tau_\theta(y)$)
+      \vspace{0.18cm}
 
-  \vspace{-0.1cm}
-  \centering
-  \Fig{task5_latent_interp_strip.png}{width=0.88\textwidth}
+      \noindent
+      \begin{minipage}[c]{0.48\linewidth}
+        \centering
+        \Fig{ldm_paper_fig5_sign.png}{height=2.85cm,keepaspectratio}
+      \end{minipage}\hfill
+      \begin{minipage}[c]{0.48\linewidth}
+        \centering
+        \Fig{ldm_paper_fig5_squirrel.png}{height=2.85cm,keepaspectratio}
+      \end{minipage}\\[3pt]
+      \noindent
+      \begin{minipage}[t]{0.48\linewidth}
+        \centering
+        {\scriptsize\textit{``A street sign that reads `Latent Diffusion'\,''}}
+      \end{minipage}\hfill
+      \begin{minipage}[t]{0.48\linewidth}
+        \centering
+        {\scriptsize\textit{``A painting of a squirrel eating a burger''}}
+      \end{minipage}
 
-  \vspace{0.06cm}
-  \raggedright\small
-  \begin{itemize}\setlength{\itemsep}{2pt}
-    \item \textbf{Latent walk vs.\ pixel blend:} $\mathcal{D}(\mathbf{z}(\lambda))$ smoothly morphs strokes ($3{\to}8$, $1{\to}7$) with no dead zones, whereas pixel blending $(1-\lambda)\mathbf{x}^{(A)}+\lambda\mathbf{x}^{(B)}$ produces ghostly double-exposures.
-    \item \textbf{Midpoint sharpness ($\lambda=0.5$):} \Key{$21.0\%$ sharper} edges (LapVar $0.0877$ vs.\ $0.0725$) with a smooth classifier transition $P(Y\mid\mathcal{D}(\mathbf{z}(\lambda)))$.
-  \end{itemize}
+      \vspace{0.18cm}
+      \raggedright\small
+      \begin{itemize}\setlength{\itemsep}{2pt}
+        \item \textbf{How:} encoder $\tau_\theta(y)$ maps inputs $y$ into tokens for cross-attention ($\mathbf{K},\mathbf{V}$).
+        \item \textbf{Tasks:} text-to-image (Fig.~5), style transfer (text/image), layouts \cite{rombach2022high}.
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \Head{Concatenation} (image-conditioned)
+      \vspace{0.18cm}
+
+      \noindent
+      \begin{minipage}[c]{0.44\linewidth}
+        \centering
+        \Fig{ldm_paper_fig11_inpaint_in.png}{height=2.85cm,keepaspectratio}
+      \end{minipage}%
+      \begin{minipage}[c]{0.12\linewidth}
+        \centering
+        {\Large\color{Main}$\rightarrow$}
+      \end{minipage}%
+      \begin{minipage}[c]{0.44\linewidth}
+        \centering
+        \Fig{ldm_paper_fig11_inpaint_out.png}{height=2.85cm,keepaspectratio}
+      \end{minipage}\\[3pt]
+      \noindent
+      \begin{minipage}[t]{0.44\linewidth}
+        \centering
+        {\scriptsize Masked input\\($512^2$)}
+      \end{minipage}%
+      \begin{minipage}[t]{0.12\linewidth}
+        ~
+      \end{minipage}%
+      \begin{minipage}[t]{0.44\linewidth}
+        \centering
+        {\scriptsize LDM output\\($512^2$)}
+      \end{minipage}
+
+      \vspace{0.18cm}
+      \raggedright\small
+      \begin{itemize}\setlength{\itemsep}{2pt}
+        \item \textbf{How:} spatially aligned input $y$ is concatenated with noisy latent $\mathbf{z}_t$.
+        \item \textbf{Tasks:} object removal ($512^2$, Fig.~11), $4{\times}$ super-res., semantic synthesis \cite{rombach2022high}.
+      \end{itemize}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ==================================================================
+\begin{frame}{Operations in Latent Space}
+  \begin{columns}[T,onlytextwidth]
+    \begin{column}{0.51\textwidth}
+      \Head{In Latent Diffusion Models}
+      \vspace{0.08cm}
+      \footnotesize
+      \begin{enumerate}\setlength{\itemsep}{4pt}
+        \item \textbf{Latent rescaling:}
+          normalize KL-reg latents by batch std.\ $\sigma$ to unit variance: $\mathbf{z}_{\text{scaled}}=\mathbf{z}/\sigma$.
+        \item \textbf{Larger latent grids:}
+          convolutional U-Net on 2D $\mathbf{z}\in\mathbb{R}^{h\times w\times c}$ scales $256^2$ models to $512{\times}1024$--$1024^2$ without retraining.
+        \item \textbf{Classifier-free guidance:}
+          steers latent denoising toward $y$ with scale $s$:
+          \vspace{-0.2cm}
+          \[\begin{aligned}
+            \tilde{\bm\epsilon}_\theta(\mathbf{z}_t,t,y) &= \bm\epsilon_\theta(\mathbf{z}_t,t,\varnothing) \\
+            &\quad + s\cdot\big(\bm\epsilon_\theta(\mathbf{z}_t,t,y) - \bm\epsilon_\theta(\mathbf{z}_t,t,\varnothing)\big)
+          \end{aligned}\]
+      \end{enumerate}
+    \end{column}
+    \begin{column}{0.46\textwidth}
+      \Head{Linear interpolation} (Stage-1 VAE)
+      \vspace{-0.22cm}
+      {\small\[ \hat{\mathbf{x}}(\lambda) = \mathcal{D}\big((1-\lambda)\,\mathbf{z}^{(A)} + \lambda\,\mathbf{z}^{(B)}\big) \]}
+      \vspace{-0.18cm}
+      {\centering\scriptsize $\mathbf{z}^{(A)}=\mathcal{E}(\mathbf{x}^{(A)}),\ \mathbf{z}^{(B)}=\mathcal{E}(\mathbf{x}^{(B)})$\par}
+      \vspace{4pt}
+      \centering
+      \Fig{task5_latent_interp_strip.png}{width=0.88\linewidth}
+
+      \vspace{0.08cm}
+      \raggedright
+      \Head{CFG scaling} (our latent U-Net)\\[2pt]
+      \centering
+      \Fig{task5_cfg_digits_strip.png}{width=0.94\linewidth}
+    \end{column}
+  \end{columns}
 \end{frame}
 
 % ==================================================================
