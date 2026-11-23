@@ -310,60 +310,37 @@
 % ==================================================================
 \begin{frame}{Latent Diffusion Models \cite{rombach2022high}}
   \centering
-  \Fig{ldm_paper_fig3.png}{height=4.5cm,keepaspectratio}\\[4pt]
+  \Fig{ldm_paper_fig3.png}{height=3.5cm,keepaspectratio}\\[2pt]
   {\scriptsize\color{black!70} Architecture diagram from Rombach et al.~\cite{rombach2022high} (Fig.~3).}
 
-  \vspace{0.3cm}
+  \vspace{0.15cm}
   \raggedright
-  \Head{Classifier-free guidance} (scale $\alpha$) pushes samples toward the prompt:
-  \vspace{-0.15cm}
-  \[ \tilde{\bm\epsilon} = \bm\epsilon_\theta(\mathbf{z}_t,\varnothing) + \alpha\,\big(\bm\epsilon_\theta(\mathbf{z}_t,y) - \bm\epsilon_\theta(\mathbf{z}_t,\varnothing)\big) \]
+  \Head{Stage 1 (Autoencoder)} trains $\mathcal{E}, \mathcal{D}$ with patch discriminator $D_\psi$:
+  \vspace{-0.22cm}
+  {\small\[ L_{\text{Autoencoder}} = \min_{\mathcal{E},\mathcal{D}}\max_{\psi}\Big(L_{\text{rec}}(\mathbf{x},\mathcal{D}(\mathcal{E}(\mathbf{x}))) - L_{\text{adv}}(\mathcal{D}(\mathcal{E}(\mathbf{x}))) + \log D_\psi(\mathbf{x}) + L_{\text{reg}}(\mathbf{x};\mathcal{E},\mathcal{D})\Big) \]}
+
+  \vspace{-0.08cm}
+  \Head{Stage 2 (Conditional LDM)} jointly optimizes $\bm\epsilon_\theta$ and conditioning encoder $\tau_\theta$:
+  \vspace{-0.22cm}
+  {\small\[ L_{\text{LDM}} := \mathbb{E}_{\mathcal{E}(\mathbf{x}),\,y,\,\bm\epsilon\sim\mathcal{N}(0,1),\,t}\Big[\big\|\bm\epsilon - \bm\epsilon_\theta(\mathbf{z}_t, t, \tau_\theta(y))\big\|_2^2\Big] \]}
 \end{frame}
 
 % ==================================================================
-\begin{frame}{Our Latent Diffusion Results}
-  \begin{columns}[T,onlytextwidth]
-    \begin{column}{0.47\textwidth}
-      \Head{Stage 1: VAE, $32{\times}32 \rightarrow 8{\times}8{\times}4$}
-      \vspace{0.15cm}
+\begin{frame}{Operations in Latent Space: Interpolation}
+  \Head{Latent linear walk} on our Stage-1 Spatial VAE ($32{\times}32 \rightarrow 8{\times}8{\times}4$, recon.\ FID $0.18$):
+  \vspace{-0.18cm}
+  \[ \hat{\mathbf{x}}(\lambda) = \mathcal{D}\big((1-\lambda)\,\mathbf{z}^{(A)} + \lambda\,\mathbf{z}^{(B)}\big), \quad \mathbf{z}^{(A)}=\mathcal{E}(\mathbf{x}^{(A)}),\ \mathbf{z}^{(B)}=\mathcal{E}(\mathbf{x}^{(B)}) \]
 
-      \centering
-      \Fig{task5_vae_recon_strip.png}{width=\linewidth}
+  \vspace{-0.1cm}
+  \centering
+  \Fig{task5_latent_interp_strip.png}{width=0.88\textwidth}
 
-      \vspace{0.15cm}
-      \raggedright
-      \begin{itemize}
-        \item Reconstruction \Key{FID 0.18}, PSNR 33.7 dB
-        \item 99.8\% of digits keep their label
-      \end{itemize}
-      \small The small latent keeps almost all of the digit content.
-    \end{column}
-    \begin{column}{0.49\textwidth}
-      \Head{Stage 2: prompt = digit label ``0''--``9''}
-      \vspace{0.15cm}
-
-      \small
-      \renewcommand{\arraystretch}{1.3}
-      \centering
-      \begin{tabular}{@{}cccc@{}}
-        \toprule
-        \textbf{CFG $\alpha$} & \textbf{Prompt acc.} & \textbf{FID $\downarrow$} & \textbf{Saturated} \\
-        \midrule
-        1.0  & 94.0\%  & \Key{28.1} & 4.5\% \\
-        3.0  & \Key{100\%} & 71.1 & 5.6\% \\
-        7.5  & 99.5\% & 94.3 & 7.5\% \\
-        15.0 & 99.5\% & 142.3 & {\color{Warn}10.6\%} \\
-        \bottomrule
-      \end{tabular}
-
-      \vspace{0.25cm}
-      \raggedright\normalsize
-      \begin{itemize}
-        \item Guidance makes the model \textbf{follow the prompt}.
-        \item Too much guidance hurts \textbf{diversity} and causes \textbf{oversaturation}.
-      \end{itemize}
-    \end{column}
-  \end{columns}
+  \vspace{0.06cm}
+  \raggedright\small
+  \begin{itemize}\setlength{\itemsep}{2pt}
+    \item \textbf{Latent walk vs.\ pixel blend:} $\mathcal{D}(\mathbf{z}(\lambda))$ smoothly morphs strokes ($3{\to}8$, $1{\to}7$) with no dead zones, whereas pixel blending $(1-\lambda)\mathbf{x}^{(A)}+\lambda\mathbf{x}^{(B)}$ produces ghostly double-exposures.
+    \item \textbf{Midpoint sharpness ($\lambda=0.5$):} \Key{$21.0\%$ sharper} edges (LapVar $0.0877$ vs.\ $0.0725$) with a smooth classifier transition $P(Y\mid\mathcal{D}(\mathbf{z}(\lambda)))$.
+  \end{itemize}
 \end{frame}
 
 % ==================================================================
